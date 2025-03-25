@@ -1,0 +1,98 @@
+/* assets/styles.css */
+
+/* Estilos gerais */
+body {
+    background-color: #f3f3f3dc;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+/* Estilo para os blocos de gráficos e mapas */
+.graph-block {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 10px;
+    margin: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.custom {
+    font-size: 10px; /* Ajuste o tamanho da fonte conforme necessário */
+    padding: 5px 10px; /* Ajuste o padding conforme necessário */
+}
+
+/* Estilo para o título */
+.title-card {
+    border-radius: 15px;  /* Borda suavizada */
+    background-color: #ffffff;
+    padding: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilo para o botão de remover filtros */
+.float-right {
+    margin-left: auto;  /* Empurrar o botão para o canto direito */
+}
+
+/* Ajuste de margem entre os gráficos */
+.mb-4 {
+    margin-bottom: 20px;
+}
+
+/* Responsividade adicional para evitar sobreposição em modo retrato */
+@media (max-width: 1200px) {
+    .graph-block {
+        margin-right: 0;
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .graph-block {
+        margin-right: 0;
+        margin-left: 0;
+        padding: 10px;
+        height: auto;
+    }
+
+    .graph-block .dash-graph {
+        height: 100%;
+    }
+}
+
+@media (max-width: 576px) {
+    .graph-block {
+        height: auto;
+    }
+}
+
+@media (max-width: 768px) {
+    .custom-button {
+        font-size: 7px; /* Reduz o tamanho da fonte em telas menores */
+        padding: 3px 7px; /* Reduz o padding em telas menores */
+        margin-bottom: 5px; /* Adiciona margem inferior para espaçamento entre botões em colunas */
+        width: 100%; /* Faz os botões ocuparem 100% da largura da coluna */
+    }
+}
+
+/* Ajustes de fontes para diferentes tamanhos de tela */
+@media (max-width: 768px) {
+    .plotly-graph-div .xtitle,
+    .plotly-graph-div .ytitle,
+    .plotly-graph-div .xtick,
+    .plotly-graph-div .ytick,
+    .plotly-graph-div .legend {
+        font-size: 2px !important; /* Ajuste o tamanho conforme necessário */
+    }
+}
+
+@media (max-width: 576px) {
+    .plotly-graph-div .xtitle,
+    .plotly-graph-div .ytitle,
+    .plotly-graph-div .xtick,
+    .plotly-graph-div .ytick,
+    .plotly-graph-div .legend {
+        font-size: 6px !important; /* Ajuste o tamanho conforme necessário */
+    }
+}
