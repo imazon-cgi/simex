@@ -25,11 +25,11 @@ def load_df(url):
     return pd.read_parquet(url)  # Lê o arquivo Parquet com Pandas.
 
 # Carrega o GeoJSON com os limites dos assentamentos na Amazônia Legal.
-roi = load_geojson("https://raw.githubusercontent.com/ScriptsRemote/repo_simex_/master/datasets/geojson/simex_amazonia_PAMT2007_2023_TerrasNDest.geojson")
+roi = load_geojson("https://raw.githubusercontent.com/imazon-cgi/simex/main/datasets/geojson/simex_amazonia_PAMT2007_2023_TerrasNDest.geojson")
 # Tenta decodificar caracteres problemáticos
 roi['name'] = roi['name'].str.encode('latin1', errors='ignore').str.decode('utf-8', errors='ignore')
 # Carrega o arquivo Parquet com dados de exploração madeireira.
-df = load_df('https://raw.githubusercontent.com/ScriptsRemote/repo_simex_/master/datasets/csv/simex_amazonia_PAMT2007_2023_TerrasNDest.parquet')
+df = load_df('https://raw.githubusercontent.com/imazon-cgi/simex/main/datasets/csv/simex_amazonia_PAMT2007_2023_TerrasNDest.parquet')
 # Tenta decodificar caracteres problemáticos
 df['name'] = df['name'].str.encode('latin1', errors='ignore').str.decode('utf-8', errors='ignore')
 # Garantindo que todos os valores sejam strings

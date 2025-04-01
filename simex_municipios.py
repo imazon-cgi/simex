@@ -25,10 +25,10 @@ def load_df(url):
     return pd.read_parquet(url)  # Lê o arquivo Parquet com Pandas.
 
 # Carrega o GeoJSON com os limites dos municípios na Amazônia Legal.
-roi = load_geojson('https://github.com/ScriptsRemote/repo_simex_/raw/master/datasets/geojson/limite_municipios_amz_legal.geojson')
+roi = load_geojson('https://github.com/imazon-cgi/simex/raw/main/datasets/geojson/limite_municipios_amz_legal.geojson')
 
 # Carrega o arquivo Parquet com dados de exploração madeireira.
-df = load_df('https://github.com/ScriptsRemote/repo_simex_/raw/master/datasets/csv/simex_amazonia_PAMT2007_2023_mun.parquet')
+df = load_df('https://github.com/imazon-cgi/simex/raw/main/datasets/csv/simex_amazonia_PAMT2007_2023_mun.parquet')
 
 # Cria listas de opções para os filtros de estado e ano com valores únicos.
 list_states = df['sigla_uf'].unique()  # Lista de siglas dos estados únicos.
