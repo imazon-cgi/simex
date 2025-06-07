@@ -130,7 +130,7 @@ def register_simex_assentamentos_dashboard(flask_server):
                     ], justify="end"),
                     dcc.Download(id="download-dataframe-csv")  # Componente para download de arquivos.
                 ])
-            ], className="mb-4 title-card"), width=12)
+            ], className="mb-4 title-card",style={"border": "none"}), width=12)
         ]),
         dbc.Row([  # Linha com dropdowns de ano inicial, final e botão de atualização.
             dbc.Col(html.Label('Ano Inicial:'), width="auto", className="d-flex align-items-center"),
@@ -406,30 +406,31 @@ def register_simex_assentamentos_dashboard(flask_server):
                 "<extra></extra>"
             )
     ))
-        # Ajusta o layout do gráfico de barras para exibir valores maiores em cima e configura a legenda.
         bar_yearly_fig.update_layout(
-            title={'text': f"Área Acumulada de Exploração Madeireira - {title_text}", 'x': 0.5},
-            titlefont=dict(size=12),
+            title=dict(
+                text=f"Área Acumulada de Exploração Madeireira - {title_text}",
+                x=0.5,
+                font=dict(size=12)
+            ),
             width=700,
             xaxis_title='Hectares (ha)',
             yaxis_title='Área de Interesse',
             bargap=0.1,
             legend=dict(
-                orientation="h",  # Configura a orientação da legenda para horizontal
-                yanchor="top",  # Alinha ao topo da área de legenda
-                y=-0.2,  # Posiciona a legenda abaixo do gráfico
-                xanchor="center",  # Centraliza a legenda horizontalmente
-                x=0.5,  # Posiciona a legenda no centro da largura do gráfico
-                font=dict(
-                    size=8  # Ajusta o tamanho da fonte das legendas
-                )
+                orientation="h",
+                yanchor="top",
+                y=-0.2,
+                xanchor="center",
+                x=0.5,
+                font=dict(size=8)
             ),
-             yaxis=dict(
-            categoryorder='array',
-            categoryarray=df_top_10.sort_values(by='area_ha', ascending=True)['name'].tolist(),
-            tickfont=dict(size=8)  # Reduz o tamanho da fonte
-                         ),
+            yaxis=dict(
+                categoryorder='array',
+                categoryarray=df_top_10.sort_values(by='area_ha', ascending=True)['name'].tolist(),
+                tickfont=dict(size=8)
+            ),
         )
+
 
         # Mapa com top 10 áreas usando GeoJSON.
         if selected_areas_store:

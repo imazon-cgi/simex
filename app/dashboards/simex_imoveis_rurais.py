@@ -1,10 +1,10 @@
-# app/dashboards/simex_imoveis_rurais.py
+# app/dashboards/simex_municipios.py
 """
-Dashboard – SIMEX • Exploração Madeireira em Imóveis Rurais Privados
-Rota Flask: /simex/imoveis_rurais/
+Dashboard – SIMEX • Exploração Madeireira em Municípios da Amazônia Legal
+Rota Flask: /simex/municipios/
 """
 
-# ────────────────────────── imports ──────────────────────────
+# ───── imports básicos
 from __future__ import annotations
 
 import io, os, tempfile, requests, unidecode
@@ -18,7 +18,7 @@ from dash import html, dcc, Input, Output, State, callback_context
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-# ──────────────────── download utilitários ───────────────────
+# ───── helpers de download resiliente
 def _tmp_from_url(url: str, suffix: str) -> str:
     r = requests.get(url, headers=HEADERS, timeout=45)
     r.raise_for_status()
@@ -48,35 +48,37 @@ def load_parquet(url: str) -> pd.DataFrame | None:
         except Exception:
             return None
 
-# ───────────────────── URLs (CDN + fallback) ──────────────────
+# ───── URLs (raw + CDN fallback)
 GJSON = [
     "https://raw.githubusercontent.com/imazon-cgi/simex/main/"
-    "datasets/geojson/simex_amazonia_PAMT2007_2023_imoveisrurais.geojson",
+    "datasets/geojson/limite_municipios_amz_legal.geojson",
     "https://cdn.jsdelivr.net/gh/imazon-cgi/simex@main/"
-    "datasets/geojson/simex_amazonia_PAMT2007_2023_imoveisrurais.geojson",
+    "datasets/geojson/limite_municipios_amz_legal.geojson",
 ]
 PARQUET = [
     "https://raw.githubusercontent.com/imazon-cgi/simex/main/"
-    "datasets/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.parquet",
+    "datasets/csv/simex_amazonia_PAMT2007_2023_mun.parquet",
     "https://cdn.jsdelivr.net/gh/imazon-cgi/simex@main/"
-    "datasets/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.parquet",
+    "datasets/csv/simex_amazonia_PAMT2007_2023_mun.parquet",
 ]
 
-# ─────────────────────── carrega dados ────────────────────────
+# ───── carrega datasets
+def load_geojson(url):
+    try:
+        return gpd.read_file(url)  # Tenta ler o arquivo GeoJSON usando Geopandas.
+    except Exception as e:
+        print(f"Erro ao carregar {url}: {e}")  # Exibe erro caso a leitura falhe.
+        return None
+
+# Função para carregar um arquivo Parquet em um DataFrame.
 def load_df(url):
     return pd.read_parquet(url)  # Lê o arquivo Parquet com Pandas.
 
-# Carrega o GeoJSON com os limites dos assentamentos na Amazônia Legal.
-roi = load_geojson('https://raw.githubusercontent.com/imazon-cgi/simex/main/datasets/geojson/simex_amazonia_PAMT2007_2023_imoveisrurais.geojson')
-# Tenta decodificar caracteres problemáticos
-roi['name'] = roi['name'].str.encode('latin1', errors='ignore').str.decode('utf-8', errors='ignore')
+# Carrega o GeoJSON com os limites dos municípios na Amazônia Legal.
+roi = load_geojson('https://github.com/imazon-cgi/simex/raw/main/datasets/geojson/limite_municipios_amz_legal.geojson')
 
 # Carrega o arquivo Parquet com dados de exploração madeireira.
-df = load_df('https://raw.githubusercontent.com/imazon-cgi/simex/main/datasets/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.parquet')
-# Tenta decodificar caracteres problemáticos
-df['name'] = df['name'].str.encode('latin1', errors='ignore').str.decode('utf-8', errors='ignore')
-# Garantindo que todos os valores sejam strings
-df['name'] = df['name'].astype(str)
+df = load_df('https://github.com/imazon-cgi/simex/raw/main/datasets/csv/simex_amazonia_PAMT2007_2023_mun.parquet')
 
 # Cria listas de opções para os filtros de estado e ano com valores únicos.
 list_states = df['sigla_uf'].unique()  # Lista de siglas dos estados únicos.
@@ -94,21 +96,22 @@ category_options = [
 
 
 # ╭────────────────────────────────────────────────────────────╮
-# │ Função pública – registrar dashboard                      │
+# │ Função pública – registra o dashboard                     │
 # ╰────────────────────────────────────────────────────────────╯
-def register_simex_imoveis_rurais_dashboard(flask_server):
+def register_simex_municipios_dashboard(flask_server):
     app = dash.Dash(
         __name__,
         server=flask_server,
-        url_base_pathname="/simex/imoveis_rurais/",
+        url_base_pathname="/simex/municipios/",
         external_stylesheets=[
             dbc.themes.BOOTSTRAP,
             "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css",
         ],
         suppress_callback_exceptions=True,
-        title="SIMEX – Imóveis Rurais",
+        title="SIMEX – Municípios",
     )
 
+    # helpers internos --------------------------------------------------
     app.layout = dbc.Container([
         html.Meta(name="viewport", content="width=device-width, initial-scale=1"),  # Configura o viewport para responsividade.
         dbc.Row([
@@ -142,7 +145,7 @@ def register_simex_imoveis_rurais_dashboard(flask_server):
                     ], justify="end"),
                     dcc.Download(id="download-dataframe-csv")  # Componente para download de arquivos.
                 ])
-            ], className="mb-4 title-card"), width=12)
+            ], className="mb-4 title-card",style={"border": "none"}), width=12)
         ]),
         dbc.Row([  # Linha com dropdowns de ano inicial, final e botão de atualização.
             dbc.Col(html.Label('Ano Inicial:'), width="auto", className="d-flex align-items-center"),
@@ -150,7 +153,7 @@ def register_simex_imoveis_rurais_dashboard(flask_server):
                 dcc.Dropdown(
                     id='start-year-dropdown',
                     options=year_options,
-                    value=2016,  # Ano inicial padrão.
+                    value=2020,  # Ano inicial padrão.
                     clearable=False
                 ), width=4
             ),
@@ -273,15 +276,15 @@ def register_simex_imoveis_rurais_dashboard(flask_server):
 
     # Função para preencher anos faltantes no DataFrame.
     def preencher_anos_faltantes(df, anos, municipios):
-        df_agg = df.groupby(['ano', 'nome'], as_index=False).sum()  # Agrupa por ano e Município, somando áreas.
+        df_agg = df.groupby(['ano', 'nome'], as_index=False).sum()  # Agrupa por ano e nome, somando áreas.
         full_index = pd.MultiIndex.from_product([anos, municipios], names=["ano", "nome"])  # Cria índice completo.
         df_full = df_agg.set_index(["ano", "nome"]).reindex(full_index, fill_value=0).reset_index()  # Reindexa preenchendo valores faltantes com 0.
         return df_full
 
-    # Função para obter o centroide de um assentamento a partir do GeoDataFrame.
+    # Função para obter o centroide de um município a partir do GeoDataFrame.
     def get_centroid(geojson, municipio_nome):
         try:
-            gdf_municipio = geojson[geojson['nome'] == municipio_nome]  # Filtra pelo nome do assentamento.
+            gdf_municipio = geojson[geojson['NM_MUN'] == municipio_nome]  # Filtra pelo nome do município.
             if not gdf_municipio.empty:
                 centroid = gdf_municipio.geometry.centroid.iloc[0]  # Obtém o centroide.
                 return centroid.y, centroid.x
@@ -327,13 +330,12 @@ def register_simex_imoveis_rurais_dashboard(flask_server):
 
         # Atribuição de valores padrão para o ano inicial e final.
         if start_year is None:
-            start_year = 2016
+            start_year = 2020
         if end_year is None:
             end_year = 2023
 
         start_year = int(start_year)  # Converte ano inicial para inteiro.
         end_year = int(end_year)  # Converte ano final para inteiro.
-
         df['ano'] = df['ano'].astype(int)  # Converte a coluna 'ano' do DataFrame para inteiro.
 
         # Reseta as seleções ao clicar no botão de reset.
@@ -342,13 +344,13 @@ def register_simex_imoveis_rurais_dashboard(flask_server):
             selected_state = None
             selected_area_state = []
             selected_category = None
-            start_year = 2016
+            start_year = 2020
             end_year = 2023
             selected_areas_store = []
 
         # Manipulação do clique no gráfico de barras.
         if triggered_id == 'bar-graph-yearly.clickData' and bar_click_data:
-            clicked_area = bar_click_data['points'][0]['y']  # Identifica o assentamento clicado.
+            clicked_area = bar_click_data['points'][0]['y']  # Identifica o município clicado.
             if clicked_area in selected_areas_store:
                 selected_areas_store.remove(clicked_area)  # Remove a área caso esteja selecionada.
             else:
@@ -356,7 +358,7 @@ def register_simex_imoveis_rurais_dashboard(flask_server):
 
         # Manipulação do clique no mapa.
         if triggered_id == 'choropleth-map.clickData' and map_click_data:
-            selected_municipio = map_click_data['points'][0]['location']  # Identifica o assentamento clicado no mapa.
+            selected_municipio = map_click_data['points'][0]['location']  # Identifica o município clicado no mapa.
             if selected_municipio in df['nome'].values:
                 if selected_municipio in selected_area_state:
                     selected_area_state.remove(selected_municipio)  # Remove a área caso esteja selecionada.
@@ -393,66 +395,40 @@ def register_simex_imoveis_rurais_dashboard(flask_server):
         area_options = [{'label': nome, 'value': nome} for nome in df_filtered['nome'].unique()]
         title_text = f"Categoria: {selected_category or 'Todas'}"
 
-        # Passo 1: Remover duplicatas dentro do mesmo ano
-        df_filtered = df_filtered.drop_duplicates(subset=['name', 'area_ha', 'nome', 'geocodigo', 'ano'])
-
-        df_acumulado_municipio = df_filtered.groupby(['nome'], as_index=False).agg({
-                'area_ha': 'sum',  # Soma as áreas por name.
-                'name': 'first'    # Mantém o primeiro valor de nome correspondente a cada name.
-            })
-            # Passo 3: Opcional - Remover duplicatas adicionais após o agrupamento, se necessário
-        df_acumulado_municipio = df_acumulado_municipio.drop_duplicates(subset=['nome', 'area_ha'])
-
-        # Passo 4: Selecionar os 10 registros com maior valor acumulado de área
+        # Seleção das top 10 áreas por ordem decrescente de exploração.
+        df_acumulado_municipio = df_filtered.groupby('nome')['area_ha'].sum().reset_index()
         df_top_10 = df_acumulado_municipio.sort_values(by='area_ha', ascending=False).head(10)
 
         # Cria o gráfico de barras com top 10 áreas.
         marker_colors = ['darkcyan' if nome in selected_areas_store else 'lightgray' for nome in df_top_10['nome']]
         bar_yearly_fig = go.Figure(go.Bar(
-            y=df_top_10['nome'],  # Usa os nomes truncados
+            y=df_top_10['nome'],
             x=df_top_10['area_ha'],
             orientation='h',
             marker_color=marker_colors,
             text=[f"{value:.2f} ha" for value in df_top_10['area_ha']],
-            textposition='auto',
-            customdata=df_top_10['name'],  # Inclui os dados customizados (nome)
-            hovertemplate=(
-                "<b>Área:</b> %{x:.2f} ha<br>"  # Mostra o valor de 'area_ha'
-                "<b>Município:</b> %{y}<br>"  # Mostra o valor de 'short_name'
-                "<b>ImoVelRur:</b> %{customdata}"  # Mostra o valor de 'name'
-                "<extra></extra>"  # Remove informações extras padrão
-            )
+            textposition='auto'
         ))
 
-        # Ajusta o layout do gráfico de barras para exibir valores maiores em cima e configura a legenda.
+        # Ajusta o layout do gráfico de barras para exibir valores maiores em cima.
         bar_yearly_fig.update_layout(
-            title={'text': f"Área Acumulada de Exploração Madeireira - Imóveis Rurais Privados {title_text}", 'x': 0.5},
+            title={'text': f"Área Acumulada de Exploração Madeireira - {title_text}", 'x': 0.5},
             titlefont=dict(size=12),
             width=700,
             xaxis_title='Hectares (ha)',
             yaxis_title='Área de Interesse',
             bargap=0.1,
-            legend=dict(
-                orientation="h",  # Configura a orientação da legenda para horizontal
-                yanchor="top",  # Alinha ao topo da área de legenda
-                y=-0.2,  # Posiciona a legenda abaixo do gráfico
-                xanchor="center",  # Centraliza a legenda horizontalmente
-                x=0.5,  # Posiciona a legenda no centro da largura do gráfico
-                font=dict(
-                    size=8  # Ajusta o tamanho da fonte das legendas
-                )
-            ),
             yaxis=dict(
                 categoryorder='array',
-                categoryarray=df_top_10.sort_values(by='area_ha', ascending=True)['nome'].tolist()  # Usa os nomes truncados
+                categoryarray=df_top_10.sort_values(by='area_ha', ascending=True)['nome'].tolist()
             )
         )
 
         # Mapa com top 10 áreas usando GeoJSON.
         if selected_areas_store:
-            roi_selected = roi[roi['nome'].isin(selected_areas_store)]
+            roi_selected = roi[roi['NM_MUN'].isin(selected_areas_store)]
         else:
-            roi_selected = roi[roi['nome'].isin(df_top_10['nome'])]
+            roi_selected = roi[roi['NM_MUN'].isin(df_top_10['nome'])]
 
         # Define o centro do mapa com base na seleção.
         if selected_area_state:
@@ -466,11 +442,10 @@ def register_simex_imoveis_rurais_dashboard(flask_server):
         map_fig = px.choropleth_mapbox(
             df_top_10, geojson=roi_selected, color='area_ha',
             locations="nome",
-            featureidkey="properties.nome",
+            featureidkey="properties.NM_MUN",
             mapbox_style="carto-positron",
             center={"lat": lat, "lon": lon},
             color_continuous_scale='YlOrRd',
-            hover_data={"nome": True, "name": True, "area_ha": True},  # Adiciona 'name' ao tooltip
             zoom=zoom
         )
 
@@ -478,7 +453,7 @@ def register_simex_imoveis_rurais_dashboard(flask_server):
         map_fig.update_layout(
             coloraxis_colorbar=dict(title="Hectares"),
             margin={"r": 0, "t": 50, "l": 0, "b": 0},
-            title={'text': f"Mapa de Exploração Madeireira (ha) - Imóveis Rurais Privados  {title_text}", 'x': 0.5}
+            title={'text': f"Mapa de Exploração Madeireira (ha) - {title_text}", 'x': 0.5}
         )
 
         # Gráfico de linha para áreas selecionadas ou top 10.
@@ -491,27 +466,18 @@ def register_simex_imoveis_rurais_dashboard(flask_server):
         df_line = df_filtered[df_filtered['nome'].isin(areas_to_plot)].groupby(['ano', 'nome', 'sigla_uf'])['area_ha'].sum().reset_index()
         df_line_full = preencher_anos_faltantes(df_line, sorted(df_filtered['ano'].unique()), areas_to_plot)
         line_fig = px.line(df_line_full, x='ano', y='area_ha', color='nome',
-                        title=f'Série Histórica de Área de Exploração Madeireira - Imóveis Rurais Privados {title_text}',
+                        title=f'Série Histórica de Área de Exploração Madeireira - {title_text}',
                         labels={'area_ha': 'Área por ano (ha)', 'ano': 'Ano'},
                         template='plotly_white', line_shape='linear')
-
         line_fig.update_traces(mode='lines+markers')
-
         line_fig.update_layout(
             xaxis_title='Ano',
             yaxis_title='Área por ano (ha)',
             font=dict(size=10),
             yaxis=dict(tickformat=".0f"),
-            legend_title_text='Assentamento',
-            title_x=0.5,
-            legend=dict(
-                orientation="h",  # Configura a orientação da legenda para horizontal
-                yanchor="top",  # Alinha ao topo da área de legenda
-                y=-0.2,  # Posiciona a legenda abaixo do gráfico
-                xanchor="center",  # Centraliza a legenda horizontalmente
-                x=0.5  # Posiciona a legenda no centro da largura do gráfico
-            )
-    )
+            legend_title_text='Município',
+            title_x=0.5
+        )
 
         # Retorno das figuras e dados para armazenar.
         return bar_yearly_fig, map_fig, line_fig, selected_states, selected_state, selected_area_state, area_options, None, selected_areas_store
@@ -574,4 +540,3 @@ def register_simex_imoveis_rurais_dashboard(flask_server):
             filtered_df = filtered_df.applymap(lambda x: unidecode.unidecode(x) if isinstance(x, str) else x)  # Remove acentos se selecionado.
 
         return dcc.send_data_frame(filtered_df.to_csv, "degradacao_amazonia.csv", sep=decimal_separator, index=False)
-

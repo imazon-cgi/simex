@@ -147,7 +147,7 @@ def register_simex_uc_dashboard(server):
                     ], justify="end"),
                     dcc.Download(id="download-dataframe-csv")  # Componente para download de arquivos.
                 ])
-            ], className="mb-4 title-card"), width=12)
+            ], className="mb-4 title-card",style={"border": "none"}), width=12)
         ]),
         dbc.Row([  # Linha com dropdowns de ano inicial, final e botão de atualização.
             dbc.Col(html.Label('Ano Inicial:'), width="auto", className="d-flex align-items-center"),
