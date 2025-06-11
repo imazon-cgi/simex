@@ -3,8 +3,6 @@
 Dashboard – SIMEX • Exploração Madeireira em Unidades de Conservação
 Rota Flask: /simex/uc/
 """
-
-# ───────────────────────── imports
 from __future__ import annotations
 import io, os, tempfile, requests, unidecode
 
@@ -14,295 +12,293 @@ import geopandas as gpd
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import html, dcc, Input, Output, State,callback_context
+from dash import html, dcc, Input, Output, State, callback_context
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-# ───────────────────────── helpers download resiliente
+# ───────────────────────── helpers ─────────────────────────
 def _temp(url: str, suf: str) -> str:
-    r = requests.get(url, headers=HEADERS, timeout=45, stream=True)
-    r.raise_for_status()
+    r = requests.get(url, headers=HEADERS, timeout=45, stream=True); r.raise_for_status()
     f = tempfile.NamedTemporaryFile(delete=False, suffix=suf)
-    for ch in r.iter_content(1024 * 1024):
-        f.write(ch)
+    for ch in r.iter_content(1024 * 1024): f.write(ch)
     f.close(); return f.name
 
 def read_geo(url: str):
-    try:
-        return gpd.read_file(url)
+    try: return gpd.read_file(url)
     except Exception:
         try:
-            p = _temp(url, ".geojson")
-            g = gpd.read_file(p); os.unlink(p); return g
-        except Exception:
-            return None
+            p = _temp(url, ".geojson"); g = gpd.read_file(p)
+            os.unlink(p); return g
+        except Exception: return None
 
 def read_parq(url: str):
-    try:
-        return pd.read_parquet(url)
+    try: return pd.read_parquet(url)
     except Exception:
         try:
             buf = io.BytesIO(requests.get(url, headers=HEADERS, timeout=45).content)
             return pd.read_parquet(buf)
-        except Exception:
-            return None
+        except Exception: return None
 
-# ───────────────────────── URLs (raw + CDN)
-GEO = [
-    "https://raw.githubusercontent.com/imazon-cgi/simex/main/"
-    "datasets/geojson/simex_amazonia_PAMT2007_2023_UC.geojson",
+# ───────────────────────── dados ──────────────────────────
+GEO = (
     "https://cdn.jsdelivr.net/gh/imazon-cgi/simex@main/"
-    "datasets/geojson/simex_amazonia_PAMT2007_2023_UC.geojson",
-]
-PARQ = [
-    "https://raw.githubusercontent.com/imazon-cgi/simex/main/"
-    "datasets/csv/simex_amazonia_PAMT2007_2023_UC.parquet",
+    "datasets/geojson/simex_amazonia_PAMT2007_2023_UC.geojson"
+)
+PARQ = (
     "https://cdn.jsdelivr.net/gh/imazon-cgi/simex@main/"
-    "datasets/csv/simex_amazonia_PAMT2007_2023_UC.parquet",
-]
+    "datasets/csv/simex_amazonia_PAMT2007_2023_UC.parquet"
+)
 
-# ───────────────────────── carrega
-def load_geojson(url):
-    try:
-        return gpd.read_file(url)  # Tenta ler o arquivo GeoJSON usando Geopandas.
-    except Exception as e:
-        print(f"Erro ao carregar {url}: {e}")  # Exibe erro caso a leitura falhe.
-        return None
+roi = read_geo(GEO)
+roi["nome_1"] = roi["nome_1"].str.encode("latin1","ignore").str.decode("utf-8","ignore")
+df  = read_parq(PARQ)
+df["nome_1"] = (df["nome_1"].str.encode("latin1","ignore")
+                               .str.decode("utf-8","ignore")
+                               .astype(str))
 
-# Função para carregar um arquivo Parquet em um DataFrame.
-def load_df(url):
-    return pd.read_parquet(url)  # Lê o arquivo Parquet com Pandas.
+list_states = df["sigla_uf"].unique()
+list_anual  = sorted(df["ano"].unique())
+state_options = [{"label": s, "value": s} for s in list_states]
+year_options  = [{"label": a, "value": a} for a in list_anual]
 
-# Carrega o GeoJSON com os limites dos assentamentos na Amazônia Legal.
-roi = load_geojson("https://raw.githubusercontent.com/imazon-cgi/simex/main/datasets/geojson/simex_amazonia_PAMT2007_2023_UC.geojson")
-# Tenta decodificar caracteres problemáticos
-roi['nome_1'] = roi['nome_1'].str.encode('latin1', errors='ignore').str.decode('utf-8', errors='ignore')
-# Carrega o arquivo Parquet com dados de exploração madeireira.
-df = load_df('https://raw.githubusercontent.com/imazon-cgi/simex/main/datasets/csv/simex_amazonia_PAMT2007_2023_UC.parquet')
-# Tenta decodificar caracteres problemáticos
-df['nome_1'] = df['nome_1'].str.encode('latin1', errors='ignore').str.decode('utf-8', errors='ignore')
-# Garantindo que todos os valores sejam strings
-df['nome_1'] = df['nome_1'].astype(str)
-
-df
-
-# Cria listas de opções para os filtros de estado e ano com valores únicos.
-list_states = df['sigla_uf'].unique()  # Lista de siglas dos estados únicos.
-list_anual = sorted(df['ano'].unique())  # Lista de anos únicos ordenada.
-state_options = [{'label': state, 'value': state} for state in list_states]  # Formata as opções para dropdown de estado.
-year_options = [{'label': year, 'value': year} for year in list_anual]  # Formata as opções para dropdown de ano.
-
-# Define as opções de categoria para o dropdown de seleção.
 category_options = [
-    {'label': 'Não autorizada', 'value': 'não autorizada'},
-    {'label': 'Autorizada', 'value': 'autorizada'},
-    {'label': 'Análise', 'value': 'análise'},
-    {'label': 'Todas', 'value': None}
+    {"label":"Não autorizada","value":"não autorizada"},
+    {"label":"Autorizada","value":"autorizada"},
+    {"label":"Análise","value":"análise"},
+    {"label":"Todas","value":None},
 ]
 
-# ╭─────────────────────────────────────────────────────╮
-# │  Função pública – registra dashboard                │
-# ╰─────────────────────────────────────────────────────╯
+# ───────────────────── CSS global ─────────────────────
+GLOBAL_CSS = """
+/* rótulos (‘Ano Inicial’, etc.) ocupam apenas o necessário */
+.label-fit{
+  white-space:nowrap;
+  font-weight:600;
+  font-size:.86rem;
+}
+
+/* botões verdes – sem sombra extra */
+.custom-button{box-shadow:none!important}
+
+/*
+  Cada card (.graph-block) vira flex-container.
+  O dcc.Graph dentro dele cresce e o Plotly RECEBE altura 100 %.
+*/
+.graph-block{
+  min-height:380px;        /* base desktop */
+  display:flex;
+  flex-direction:column;
+}
+.graph-block .dash-graph{
+  flex:1 1 auto;
+  width:100%!important;
+}
+/* força o elemento plotly interno a ocupar toda a altura */
+.graph-block .dash-graph .js-plotly-plot{
+  height:100%!important;
+}
+
+/* Telas estreitas (< 576 px) – aumenta altura mínima */
+@media (max-width:576px){
+  /* cards comuns */
+  .graph-block{min-height:420px}
+  /* se quiser donuts ainda maiores, só descomentar: */
+  /* .graph-block .js-plotly-plot{min-height:450px} */
+}
+"""
+
+
+# ╭──────────────────────────────────────────────────────────╮
+# │ Registro do dashboard                                   │
+# ╰──────────────────────────────────────────────────────────╯
 def register_simex_uc_dashboard(server):
     app = dash.Dash(
-        __name__,
-        server=server,
-        url_base_pathname="/simex/uc/",
+        __name__, server=server, url_base_pathname="/simex/uc/",
         external_stylesheets=[dbc.themes.BOOTSTRAP,
                               "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"],
         suppress_callback_exceptions=True,
         title="SIMEX – UCs",
     )
 
-    app.layout = dbc.Container([
-        html.Meta(name="viewport", content="width=device-width, initial-scale=1"),  # Configura o viewport para responsividade.
-        dbc.Row([
-            dbc.Col(dbc.Card([
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col(
-                            dbc.Button(
-                                [html.I(className="fa fa-filter mr-1"), "Remover Filtros"],  # Botão para resetar filtros.
-                                id="reset-button-top", n_clicks=0, color="primary", className="btn-sm custom-button"
-                            ), width="auto", className="d-flex justify-content-end"
-                        ),
-                        dbc.Col(
-                            dbc.Button(
-                                [html.I(className="fa fa-map mr-1"), "Selecione o Estado"],  # Botão para abrir modal de seleção de estado.
-                                id="open-state-modal-button", className="btn btn-secondary btn-sm custom-button"
-                            ), width="auto", className="d-flex justify-content-end"
-                        ),
-                        dbc.Col(
-                            dbc.Button(
-                                [html.I(className="fa fa-map mr-1"), "Selecionar Área de Interesse"],  # Botão para abrir modal de seleção de área de interesse.
-                                id="open-area-modal-button", className="btn btn-secondary btn-sm custom-button"
-                            ), width="auto", className="d-flex justify-content-end"
-                        ),
-                        dbc.Col(
-                            dbc.Button(
-                                [html.I(className="fa fa-download mr-1"), "Baixar CSV"],  # Botão para abrir modal de download.
-                                id="open-modal-button", className="btn btn-secondary btn-sm custom-button"
-                            ), width="auto", className="d-flex justify-content-end"
-                        )
-                    ], justify="end"),
-                    dcc.Download(id="download-dataframe-csv")  # Componente para download de arquivos.
+    # injeção de CSS
+    app.clientside_callback(
+        f"""function(x){{const t=document.createElement('style');
+                        t.innerHTML={repr(GLOBAL_CSS)};
+                        document.head.appendChild(t);return null}}""",
+        Output("css-out","children"), Input("css-in","data")
+    )
+
+    # ---------------- layout ----------------
+    app.layout = html.Div([
+        dcc.Store(id="css-in", data=0), html.Div(id="css-out"),
+
+        dbc.Container([
+            html.Meta(name="viewport",
+                      content="width=device-width, initial-scale=1"),
+
+            # ───── linha de controles ─────
+            dbc.Row([
+                dbc.Col(html.Label("Ano Inicial:", className="label-fit"),
+                        xs="auto", className="d-flex align-items-center"),
+                dbc.Col(dcc.Dropdown(id="start-year-dropdown",
+                                     options=year_options, value=2016,
+                                     clearable=False),
+                        xs=12, sm=6, md=3, lg=3),
+
+                dbc.Col(html.Label("Ano Final:", className="label-fit"),
+                        xs="auto", className="d-flex align-items-center"),
+                dbc.Col(dcc.Dropdown(id="end-year-dropdown",
+                                     options=year_options, value=2023,
+                                     clearable=False),
+                        xs=12, sm=6, md=3, lg=3),
+
+                dbc.Col(dbc.Button([html.I(className="fa fa-refresh me-1"),
+                                    "Atualizar Intervalo"],
+                                   id="refresh-button", n_clicks=0,
+                                   color="success",
+                                   className="btn-sm custom-button"),
+                        xs="auto",
+                        className="d-flex align-items-center justify-content-end mt-2 mt-md-0"),
+
+                dbc.Col(dbc.Button([html.I(className="fa fa-filter me-1"),
+                                    "Remover Filtros"],
+                                   id="reset-button-top", n_clicks=0,
+                                   color="success",
+                                   className="btn-sm custom-button"),
+                        xs="auto", className="d-flex align-items-center mt-2 mt-md-0"),
+
+                dbc.Col(dbc.Button([html.I(className="fa fa-map me-1"),
+                                    "Selecione o Estado"],
+                                   id="open-state-modal-button",
+                                   color="success",
+                                   className="btn-sm custom-button"),
+                        xs="auto", className="d-flex align-items-center mt-2 mt-md-0"),
+
+                dbc.Col(dbc.Button([html.I(className="fa fa-map me-1"),
+                                    "Selecionar Área de Interesse"],
+                                   id="open-area-modal-button",
+                                   color="success",
+                                   className="btn-sm custom-button"),
+                        xs="auto", className="d-flex align-items-center mt-2 mt-md-0"),
+
+                dbc.Col(dbc.Button([html.I(className="fa fa-download me-1"),
+                                    "Baixar CSV"],
+                                   id="open-modal-button",
+                                   color="success",
+                                   className="btn-sm custom-button"),
+                        xs="auto", className="d-flex align-items-center mt-2 mt-md-0"),
+            ], className="gx-2 mb-3 flex-wrap"),
+
+            # categoria
+            dbc.Row([
+                dbc.Col(html.Label("Categoria:", className="label-fit"),
+                        xs="auto", className="d-flex align-items-center"),
+                dbc.Col(dcc.Dropdown(id="category-dropdown",
+                                     options=category_options,
+                                     value=None, clearable=False),
+                        xs=12, sm=6, md=4, lg=3),
+            ], className="gx-2 mb-4"),
+
+            # ───── gráficos ─────
+            dbc.Row([
+                dbc.Col(dbc.Card(dcc.Graph(id="bar-graph-yearly",
+                                           config={"responsive": True}),
+                                 className="graph-block shadow-sm"),
+                        xs=12, lg=6, className="mb-4"),
+                dbc.Col(dbc.Card(dcc.Graph(id="choropleth-map",
+                                           config={"responsive": True}),
+                                 className="graph-block shadow-sm"),
+                        xs=12, lg=6, className="mb-4"),
+            ]),
+            dbc.Row([
+                dbc.Col(dbc.Card(dcc.Graph(id="line-graph",
+                                           config={"responsive": True}),
+                                 className="graph-block shadow-sm"),
+                        xs=12, className="mb-4")
+            ]),
+            dbc.Row([
+                dbc.Col(dbc.Card(dcc.Graph(id="pie-chart",
+                                           config={"responsive": True}),
+                                 className="graph-block shadow-sm"),
+                        xs=12, lg=6, className="mb-4"),
+                dbc.Col(dbc.Card(dcc.Graph(id="pie-chart-uf-esfera",
+                                           config={"responsive": True}),
+                                 className="graph-block shadow-sm"),
+                        xs=12, lg=6, className="mb-4"),
+            ]),
+
+            # stores + download
+            dcc.Store(id="selected-states",      data=[]),
+            dcc.Store(id="selected-area",        data=[]),
+            dcc.Store(id="selected-areas-store", data=[]),
+            dcc.Download(id="download-dataframe-csv"),
+
+            # ──────── MODAIS ────────
+            dbc.Modal([
+                dbc.ModalHeader(dbc.ModalTitle("Escolha Estados")),
+                dbc.ModalBody(
+                    dcc.Dropdown(id="state-dropdown-modal",
+                                 options=state_options,
+                                 placeholder="Selecione o(s) Estado(s)",
+                                 multi=True)
+                ),
+                dbc.ModalFooter(
+                    dbc.Button("Fechar", id="close-state-modal-button",
+                               color="danger")
+                )
+            ], id="state-modal", is_open=False, size="lg", scrollable=True),
+
+            dbc.Modal([
+                dbc.ModalHeader(dbc.ModalTitle("Escolha as Áreas de Interesse")),
+                dbc.ModalBody(
+                    dcc.Dropdown(id="area-dropdown",
+                                 placeholder="Selecione as Áreas",
+                                 multi=True)
+                ),
+                dbc.ModalFooter(
+                    dbc.Button("Fechar", id="close-area-modal-button",
+                               color="danger")
+                )
+            ], id="area-modal", is_open=False, size="lg", scrollable=True),
+
+            dbc.Modal([
+                dbc.ModalHeader(dbc.ModalTitle("Configurações para gerar o CSV")),
+                dbc.ModalBody([
+                    dbc.Checklist(options=state_options, id="state-checklist",
+                                  inline=True),
+                    html.Hr(),
+                    dbc.RadioItems(options=[{"label":"Ponto","value":"."},
+                                            {"label":"Vírgula","value":","}],
+                                   value=".", id="decimal-separator",
+                                   inline=True, className="mb-2"),
+                    dbc.Checkbox(label="Sem acentuação",
+                                 id="remove-accents", value=False)
+                ]),
+                dbc.ModalFooter([
+                    dbc.Button("Download", id="download-button", color="success"),
+                    dbc.Button("Fechar", id="close-modal-button", color="danger")
                 ])
-            ], className="mb-4 title-card",style={"border": "none"}), width=12)
-        ]),
-        dbc.Row([  # Linha com dropdowns de ano inicial, final e botão de atualização.
-            dbc.Col(html.Label('Ano Inicial:'), width="auto", className="d-flex align-items-center"),
-            dbc.Col(
-                dcc.Dropdown(
-                    id='start-year-dropdown',
-                    options=year_options,
-                    value=2016,  # Ano inicial padrão.
-                    clearable=False
-                ), width=4
-            ),
-            dbc.Col(html.Label('Ano Final:'), width="auto", className="d-flex align-items-center"),
-            dbc.Col(
-                dcc.Dropdown(
-                    id='end-year-dropdown',
-                    options=year_options,
-                    value=2023,  # Ano final padrão.
-                    clearable=False
-                ), width=4
-            ),
-            dbc.Col(
-                dbc.Button(
-                    [html.I(className="fa fa-refresh mr-1"), "Atualizar Intervalo"],  # Botão para atualizar os intervalos de ano.
-                    id="refresh-button", n_clicks=0, color="success", className="btn-sm custom-button"
-                ), width="auto", className="d-flex justify-content-end ml-2"
-            ),
-        ], className='mb-4 align-items-center'),
+            ], id="modal", is_open=False, size="lg", scrollable=True),
+        ], fluid=True)
+    ])
 
-        # Linha com dropdown para selecionar a categoria.
-        dbc.Row([
-            dbc.Col(html.Label('Categoria:'), width="auto", className="d-flex align-items-center"),
-            dbc.Col(
-                dcc.Dropdown(
-                    id='category-dropdown',
-                    options=category_options,
-                    value=None,  # Categoria padrão para 'Todas'.
-                    clearable=False
-                ), width=4
-            )
-        ], className='mb-4 align-items-center'),
+    # ───────── auxiliares ─────────
+    def preencher_anos_faltantes(df_in, anos, areas):
+        idx = pd.MultiIndex.from_product([anos, areas], names=["ano","nome_1"])
+        return (df_in.groupby(["ano","nome_1"], as_index=False)["area_ha"]
+                  .sum()
+                  .set_index(["ano","nome_1"])
+                  .reindex(idx, fill_value=0)
+                  .reset_index())
 
-        # Linha com gráfico de barras e mapa.
-        dbc.Row([
-            dbc.Col(dbc.Card([
-                dcc.Graph(id='bar-graph-yearly')  # Gráfico de barras anual.
-            ], className="graph-block"), width=12, lg=6),
-            dbc.Col(dbc.Card([
-                dcc.Graph(id='choropleth-map')  # Mapa coroplético.
-            ], className="graph-block"), width=12, lg=6)
-        ], className='mb-4'),
-
-        # Linha com gráfico de linhas.
-        dbc.Row([
-            dbc.Col(dbc.Card([
-                dcc.Graph(id='line-graph')  # Gráfico de linhas para série temporal.
-            ], className="graph-block"), width=12)
-        ], className='mb-4'),
-
-        # Linha com dois gráficos de pizza lado a lado.
-        dbc.Row([
-            dbc.Col(dbc.Card([
-                dcc.Graph(id='pie-chart')  # Primeiro gráfico de pizza.
-            ], className="graph-block"), width=6),  # Ocupa metade da largura.
-            dbc.Col(dbc.Card([
-                dcc.Graph(id='pie-chart-uf-esfera')  # Segundo gráfico de pizza.
-            ], className="graph-block"), width=6)  # Ocupa metade da largura.
-        ], className='mb-4'),
-
-        # Armazena dados de estado selecionados, ano e áreas de interesse.
-        dcc.Store(id='selected-states', data=[]),
-        dcc.Store(id='selected-year', data=list_anual[-1]),
-        dcc.Store(id='selected-area', data=[]),
-        dcc.Store(id='selected-areas-store', data=[]),  # Store para armazenar áreas selecionadas.
-
-        # Modal para seleção de estados.
-        dbc.Modal([
-            dbc.ModalHeader(dbc.ModalTitle("Escolha Áreas de Interesse da Amazônia Legal")),
-            dbc.ModalBody([
-                dcc.Dropdown(
-                    options=state_options,
-                    id="state-dropdown-modal",
-                    placeholder="Selecione o Estado",
-                    multi=True
-                )
-            ]),
-            dbc.ModalFooter([
-                dbc.Button("Fechar", id="close-state-modal-button", color="danger")
-            ])
-        ], id="state-modal", is_open=False),
-
-        # Modal para seleção de áreas de interesse.
-        dbc.Modal([
-            dbc.ModalHeader(dbc.ModalTitle("Escolha as Áreas de Interesse")),
-            dbc.ModalBody([
-                dcc.Dropdown(
-                    id="area-dropdown",
-                    placeholder="Selecione as Áreas de Interesse",
-                    multi=True
-                )
-            ]),
-            dbc.ModalFooter([
-                dbc.Button("Fechar", id="close-area-modal-button", color="danger")
-            ])
-        ], id="area-modal", is_open=False),
-
-        # Modal para configurar o download do CSV.
-        dbc.Modal([
-            dbc.ModalHeader(dbc.ModalTitle("Configurações para gerar o CSV")),
-            dbc.ModalBody([
-                dbc.Checklist(
-                    options=state_options,
-                    id="state-checklist",
-                    inline=True
-                ),
-                html.Hr(),
-                dbc.RadioItems(
-                    options=[
-                        {'label': 'Ponto', 'value': '.'},
-                        {'label': 'Vírgula', 'value': ','}
-                    ],
-                    value='.',
-                    id='decimal-separator',
-                    inline=True,
-                    className='mb-2'
-                ),
-                dbc.Checkbox(
-                    label="Sem acentuação",
-                    id="remove-accents",
-                    value=False
-                )
-            ]),
-            dbc.ModalFooter([
-                dbc.Button("Download", id="download-button", color="success"),
-                dbc.Button("Fechar", id="close-modal-button", color="danger")
-            ])
-        ], id="modal", is_open=False)
-    ], fluid=True)
-
-    # Função para preencher anos faltantes no DataFrame.
-    def preencher_anos_faltantes(df, anos, municipios):
-        df_agg = df.groupby(['ano', 'nome_1'], as_index=False).sum()  # Agrupa por ano e Município, somando áreas.
-        full_index = pd.MultiIndex.from_product([anos, municipios], names=["ano", "nome_1"])  # Cria índice completo.
-        df_full = df_agg.set_index(["ano", "nome_1"]).reindex(full_index, fill_value=0).reset_index()  # Reindexa preenchendo valores faltantes com 0.
-        return df_full
-
-    # Função para obter o centroide de um assentamento a partir do GeoDataFrame.
-    def get_centroid(geojson, municipio_nome):
+    def get_centroid(gjson, nm):
         try:
-            gdf_municipio = geojson[geojson['nome_1'] == municipio_nome]  # Filtra pelo nome do assentamento.
-            if not gdf_municipio.empty:
-                centroid = gdf_municipio.geometry.centroid.iloc[0]  # Obtém o centroide.
-                return centroid.y, centroid.x
-        except Exception as e:
-            print(f"Erro ao obter centroide para {municipio_nome}: {e}")
-        return -14, -55  # Retorna centro aproximado do Brasil caso haja erro.
+            g = gjson.loc[gjson["nome_1"] == nm]
+            if not g.empty:
+                c = g.geometry.centroid.iloc[0]
+                return c.y, c.x
+        except Exception: pass
+        return -14, -55
 
     # Funções de callback do Dash para atualizar gráficos e manipular filtros e seleção de áreas.
     @app.callback(
@@ -444,9 +440,7 @@ def register_simex_uc_dashboard(server):
     ))
         # Ajusta o layout do gráfico de barras para exibir valores maiores em cima e configura a legenda.
         bar_yearly_fig.update_layout(
-            title={'text': f"Área Acumulada de Exploração Madeireira - {title_text}", 'x': 0.5},
-            titlefont=dict(size=12),
-            width=700,
+            title={'text': f"Área Acumulada de Exploração Madeireira - {title_text}", 'x': 0.5,"font": {"size": 12}},
             xaxis_title='Hectares (ha)',
             yaxis_title='Área de Interesse',
             bargap=0.1,

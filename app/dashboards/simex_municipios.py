@@ -3,11 +3,9 @@
 Dashboard – SIMEX • Exploração Madeireira em Municípios da Amazônia Legal
 Rota Flask: /simex/municipios/
 """
-
-# ───── imports básicos
 from __future__ import annotations
-
 import io, os, tempfile, requests, unidecode
+
 import dash
 import dash_bootstrap_components as dbc
 import geopandas as gpd
@@ -18,86 +16,66 @@ from dash import html, dcc, Input, Output, State, callback_context
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-# ───── helpers de download resiliente
+# ───────────────────────── helpers ─────────────────────────
 def _tmp_from_url(url: str, suffix: str) -> str:
-    r = requests.get(url, headers=HEADERS, timeout=45)
-    r.raise_for_status()
+    r = requests.get(url, headers=HEADERS, timeout=45); r.raise_for_status()
     f = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-    for chunk in r.iter_content(1024 * 1024):
-        f.write(chunk)
-    f.close()
-    return f.name
+    for chunk in r.iter_content(1024*1024): f.write(chunk)
+    f.close(); return f.name
 
 def load_geojson(url: str):
-    try:
-        return gpd.read_file(url)
+    try: return gpd.read_file(url)
     except Exception:
         try:
             p = _tmp_from_url(url, ".geojson")
             gdf = gpd.read_file(p); os.unlink(p); return gdf
-        except Exception:
-            return None
+        except Exception: return None
 
 def load_parquet(url: str) -> pd.DataFrame | None:
-    try:
-        return pd.read_parquet(url)
+    try: return pd.read_parquet(url)
     except Exception:
         try:
             buf = io.BytesIO(requests.get(url, headers=HEADERS, timeout=45).content)
             return pd.read_parquet(buf)
-        except Exception:
-            return None
+        except Exception: return None
 
-# ───── URLs (raw + CDN fallback)
-GJSON = [
-    "https://raw.githubusercontent.com/imazon-cgi/simex/main/"
-    "datasets/geojson/limite_municipios_amz_legal.geojson",
+# ───────────────────────── dados ──────────────────────────
+GJSON = (
     "https://cdn.jsdelivr.net/gh/imazon-cgi/simex@main/"
-    "datasets/geojson/limite_municipios_amz_legal.geojson",
-]
-PARQUET = [
-    "https://raw.githubusercontent.com/imazon-cgi/simex/main/"
-    "datasets/csv/simex_amazonia_PAMT2007_2023_mun.parquet",
+    "datasets/geojson/limite_municipios_amz_legal.geojson"
+)
+PARQUET = (
     "https://cdn.jsdelivr.net/gh/imazon-cgi/simex@main/"
-    "datasets/csv/simex_amazonia_PAMT2007_2023_mun.parquet",
-]
+    "datasets/csv/simex_amazonia_PAMT2007_2023_mun.parquet"
+)
 
-# ───── carrega datasets
-def load_geojson(url):
-    try:
-        return gpd.read_file(url)  # Tenta ler o arquivo GeoJSON usando Geopandas.
-    except Exception as e:
-        print(f"Erro ao carregar {url}: {e}")  # Exibe erro caso a leitura falhe.
-        return None
+roi = load_geojson(GJSON)
+df  = load_parquet(PARQUET)
 
-# Função para carregar um arquivo Parquet em um DataFrame.
-def load_df(url):
-    return pd.read_parquet(url)  # Lê o arquivo Parquet com Pandas.
+list_states = df["sigla_uf"].unique()
+list_anual  = sorted(df["ano"].unique())
+state_options = [{"label": s, "value": s} for s in list_states]
+year_options  = [{"label": a, "value": a} for a in list_anual]
 
-# Carrega o GeoJSON com os limites dos municípios na Amazônia Legal.
-roi = load_geojson('https://github.com/imazon-cgi/simex/raw/main/datasets/geojson/limite_municipios_amz_legal.geojson')
-
-# Carrega o arquivo Parquet com dados de exploração madeireira.
-df = load_df('https://github.com/imazon-cgi/simex/raw/main/datasets/csv/simex_amazonia_PAMT2007_2023_mun.parquet')
-
-# Cria listas de opções para os filtros de estado e ano com valores únicos.
-list_states = df['sigla_uf'].unique()  # Lista de siglas dos estados únicos.
-list_anual = sorted(df['ano'].unique())  # Lista de anos únicos ordenada.
-state_options = [{'label': state, 'value': state} for state in list_states]  # Formata as opções para dropdown de estado.
-year_options = [{'label': year, 'value': year} for year in list_anual]  # Formata as opções para dropdown de ano.
-
-# Define as opções de categoria para o dropdown de seleção.
 category_options = [
-    {'label': 'Não autorizada', 'value': 'não autorizada'},
-    {'label': 'Autorizada', 'value': 'autorizada'},
-    {'label': 'Análise', 'value': 'análise'},
-    {'label': 'Todas', 'value': None}
+    {"label": "Não autorizada", "value": "não autorizada"},
+    {"label": "Autorizada",      "value": "autorizada"},
+    {"label": "Análise",         "value": "análise"},
+    {"label": "Todas",           "value": None},
 ]
 
+# ───────────────────── CSS global ─────────────────────
+GLOBAL_CSS = """
+.label-fit{white-space:nowrap;font-weight:600;font-size:.86rem}
+.custom-button{box-shadow:none!important}
+.graph-block .dash-graph{width:100%!important;height:100%!important}
+.graph-block{min-height:340px}
+@media (max-width:576px){.graph-block{min-height:260px}}
+"""
 
-# ╭────────────────────────────────────────────────────────────╮
-# │ Função pública – registra o dashboard                     │
-# ╰────────────────────────────────────────────────────────────╯
+# ╭──────────────────────────────────────────────────────────╮
+# │ Registro do dashboard                                   │
+# ╰──────────────────────────────────────────────────────────╯
 def register_simex_municipios_dashboard(flask_server):
     app = dash.Dash(
         __name__,
@@ -111,432 +89,344 @@ def register_simex_municipios_dashboard(flask_server):
         title="SIMEX – Municípios",
     )
 
-    # helpers internos --------------------------------------------------
-    app.layout = dbc.Container([
-        html.Meta(name="viewport", content="width=device-width, initial-scale=1"),  # Configura o viewport para responsividade.
-        dbc.Row([
-            dbc.Col(dbc.Card([
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col(
-                            dbc.Button(
-                                [html.I(className="fa fa-filter mr-1"), "Remover Filtros"],  # Botão para resetar filtros.
-                                id="reset-button-top", n_clicks=0, color="primary", className="btn-sm custom-button"
-                            ), width="auto", className="d-flex justify-content-end"
-                        ),
-                        dbc.Col(
-                            dbc.Button(
-                                [html.I(className="fa fa-map mr-1"), "Selecione o Estado"],  # Botão para abrir modal de seleção de estado.
-                                id="open-state-modal-button", className="btn btn-secondary btn-sm custom-button"
-                            ), width="auto", className="d-flex justify-content-end"
-                        ),
-                        dbc.Col(
-                            dbc.Button(
-                                [html.I(className="fa fa-map mr-1"), "Selecionar Área de Interesse"],  # Botão para abrir modal de seleção de área de interesse.
-                                id="open-area-modal-button", className="btn btn-secondary btn-sm custom-button"
-                            ), width="auto", className="d-flex justify-content-end"
-                        ),
-                        dbc.Col(
-                            dbc.Button(
-                                [html.I(className="fa fa-download mr-1"), "Baixar CSV"],  # Botão para abrir modal de download.
-                                id="open-modal-button", className="btn btn-secondary btn-sm custom-button"
-                            ), width="auto", className="d-flex justify-content-end"
-                        )
-                    ], justify="end"),
-                    dcc.Download(id="download-dataframe-csv")  # Componente para download de arquivos.
+    # injeção de CSS
+    app.clientside_callback(
+        f"""function(x){{const s=document.createElement('style');
+                        s.innerHTML={repr(GLOBAL_CSS)};
+                        document.head.appendChild(s);return null}}""",
+        Output("css-out","children"), Input("css-in","data")
+    )
+
+    # ---------------- layout ----------------
+    app.layout = html.Div([
+        dcc.Store(id="css-in", data=0), html.Div(id="css-out"),
+
+        dbc.Container([
+            html.Meta(name="viewport",
+                      content="width=device-width, initial-scale=1"),
+
+            # ───────── linha de controles ─────────
+            dbc.Row([
+                dbc.Col(html.Label("Ano Inicial:", className="label-fit"),
+                        xs="auto", className="d-flex align-items-center"),
+                dbc.Col(dcc.Dropdown(id="start-year-dropdown",
+                                     options=year_options, value=2020,
+                                     clearable=False),
+                        xs=12, sm=6, md=3, lg=3),
+
+                dbc.Col(html.Label("Ano Final:", className="label-fit"),
+                        xs="auto", className="d-flex align-items-center"),
+                dbc.Col(dcc.Dropdown(id="end-year-dropdown",
+                                     options=year_options, value=2023,
+                                     clearable=False),
+                        xs=12, sm=6, md=3, lg=3),
+
+                dbc.Col(dbc.Button([html.I(className="fa fa-refresh me-1"),
+                                    "Atualizar Intervalo"],
+                                   id="refresh-button", n_clicks=0,
+                                   color="success",
+                                   className="btn-sm custom-button"),
+                        xs="auto",
+                        className="d-flex align-items-center justify-content-end mt-2 mt-md-0"),
+
+                dbc.Col(dbc.Button([html.I(className="fa fa-filter me-1"),
+                                    "Remover Filtros"],
+                                   id="reset-button-top", n_clicks=0,
+                                   color="success", className="btn-sm custom-button"),
+                        xs="auto", className="d-flex align-items-center mt-2 mt-md-0"),
+
+                dbc.Col(dbc.Button([html.I(className="fa fa-map me-1"),
+                                    "Selecione o Estado"],
+                                   id="open-state-modal-button",
+                                   color="success", className="btn-sm custom-button"),
+                        xs="auto", className="d-flex align-items-center mt-2 mt-md-0"),
+
+                dbc.Col(dbc.Button([html.I(className="fa fa-map me-1"),
+                                    "Selecionar Área de Interesse"],
+                                   id="open-area-modal-button",
+                                   color="success", className="btn-sm custom-button"),
+                        xs="auto", className="d-flex align-items-center mt-2 mt-md-0"),
+
+                dbc.Col(dbc.Button([html.I(className="fa fa-download me-1"),
+                                    "Baixar CSV"],
+                                   id="open-modal-button",
+                                   color="success", className="btn-sm custom-button"),
+                        xs="auto", className="d-flex align-items-center mt-2 mt-md-0"),
+            ], className="gx-2 mb-3 flex-wrap"),
+
+            # categoria
+            dbc.Row([
+                dbc.Col(html.Label("Categoria:", className="label-fit"),
+                        xs="auto", className="d-flex align-items-center"),
+                dbc.Col(dcc.Dropdown(id="category-dropdown",
+                                     options=category_options,
+                                     value=None, clearable=False),
+                        xs=12, sm=6, md=4, lg=3),
+            ], className="gx-2 mb-4"),
+
+            # ───────── gráficos ─────────
+            dbc.Row([
+                dbc.Col(dbc.Card(dcc.Graph(id="bar-graph-yearly",
+                                           config={"responsive": True}),
+                                 className="graph-block shadow-sm"),
+                        xs=12, lg=6, className="mb-4"),
+                dbc.Col(dbc.Card(dcc.Graph(id="choropleth-map",
+                                           config={"responsive": True}),
+                                 className="graph-block shadow-sm"),
+                        xs=12, lg=6, className="mb-4"),
+            ]),
+            dbc.Row([
+                dbc.Col(dbc.Card(dcc.Graph(id="line-graph",
+                                           config={"responsive": True}),
+                                 className="graph-block shadow-sm"),
+                        xs=12, className="mb-4")
+            ]),
+
+            # stores + download
+            dcc.Store(id="selected-states",      data=[]),
+            dcc.Store(id="selected-area",        data=[]),
+            dcc.Store(id="selected-areas-store", data=[]),
+            dcc.Download(id="download-dataframe-csv"),
+
+            # ───────────── MODAIS ─────────────
+            dbc.Modal([
+                dbc.ModalHeader(dbc.ModalTitle("Escolha Estados")),
+                dbc.ModalBody(
+                    dcc.Dropdown(options=state_options,
+                                 id="state-dropdown-modal",
+                                 placeholder="Selecione o(s) Estado(s)",
+                                 multi=True)
+                ),
+                dbc.ModalFooter(
+                    dbc.Button("Fechar",
+                               id="close-state-modal-button",
+                               color="danger")
+                )
+            ], id="state-modal", is_open=False, size="lg", scrollable=True),
+
+            dbc.Modal([
+                dbc.ModalHeader(dbc.ModalTitle("Escolha as Áreas de Interesse")),
+                dbc.ModalBody(
+                    dcc.Dropdown(id="area-dropdown",
+                                 placeholder="Selecione as Áreas",
+                                 multi=True)
+                ),
+                dbc.ModalFooter(
+                    dbc.Button("Fechar",
+                               id="close-area-modal-button",
+                               color="danger")
+                )
+            ], id="area-modal", is_open=False, size="lg", scrollable=True),
+
+            dbc.Modal([
+                dbc.ModalHeader(dbc.ModalTitle("Configurações para gerar o CSV")),
+                dbc.ModalBody([
+                    dbc.Checklist(options=state_options,
+                                  id="state-checklist",
+                                  inline=True),
+                    html.Hr(),
+                    dbc.RadioItems(options=[{"label":"Ponto","value":"."},
+                                            {"label":"Vírgula","value":","}],
+                                   value=".", id="decimal-separator",
+                                   inline=True, className="mb-2"),
+                    dbc.Checkbox(label="Sem acentuação",
+                                 id="remove-accents", value=False)
+                ]),
+                dbc.ModalFooter([
+                    dbc.Button("Download", id="download-button", color="success"),
+                    dbc.Button("Fechar", id="close-modal-button", color="danger")
                 ])
-            ], className="mb-4 title-card",style={"border": "none"}), width=12)
-        ]),
-        dbc.Row([  # Linha com dropdowns de ano inicial, final e botão de atualização.
-            dbc.Col(html.Label('Ano Inicial:'), width="auto", className="d-flex align-items-center"),
-            dbc.Col(
-                dcc.Dropdown(
-                    id='start-year-dropdown',
-                    options=year_options,
-                    value=2020,  # Ano inicial padrão.
-                    clearable=False
-                ), width=4
-            ),
-            dbc.Col(html.Label('Ano Final:'), width="auto", className="d-flex align-items-center"),
-            dbc.Col(
-                dcc.Dropdown(
-                    id='end-year-dropdown',
-                    options=year_options,
-                    value=2023,  # Ano final padrão.
-                    clearable=False
-                ), width=4
-            ),
-            dbc.Col(
-                dbc.Button(
-                    [html.I(className="fa fa-refresh mr-1"), "Atualizar Intervalo"],  # Botão para atualizar os intervalos de ano.
-                    id="refresh-button", n_clicks=0, color="success", className="btn-sm custom-button"
-                ), width="auto", className="d-flex justify-content-end ml-2"
-            ),
-        ], className='mb-4 align-items-center'),
+            ], id="modal", is_open=False, size="lg", scrollable=True),
+        ], fluid=True)
+    ])
 
-        # Linha com dropdown para selecionar a categoria.
-        dbc.Row([
-            dbc.Col(html.Label('Categoria:'), width="auto", className="d-flex align-items-center"),
-            dbc.Col(
-                dcc.Dropdown(
-                    id='category-dropdown',
-                    options=category_options,
-                    value=None,  # Categoria padrão para 'Todas'.
-                    clearable=False
-                ), width=4
-            )
-        ], className='mb-4 align-items-center'),
+    # ───────── auxiliares ─────────
+    def preencher_anos_faltantes(df_in, anos, areas):
+        full = pd.MultiIndex.from_product([anos, areas], names=["ano","nome"])
+        return (df_in.groupby(["ano","nome"], as_index=False)["area_ha"]
+                  .sum()
+                  .set_index(["ano","nome"])
+                  .reindex(full, fill_value=0)
+                  .reset_index())
 
-        # Linha com gráfico de barras e mapa.
-        dbc.Row([
-            dbc.Col(dbc.Card([
-                dcc.Graph(id='bar-graph-yearly')  # Gráfico de barras anual.
-            ], className="graph-block"), width=12, lg=6),
-            dbc.Col(dbc.Card([
-                dcc.Graph(id='choropleth-map')  # Mapa coroplético.
-            ], className="graph-block"), width=12, lg=6)
-        ], className='mb-4'),
-
-        # Linha com gráfico de linhas.
-        dbc.Row([
-            dbc.Col(dbc.Card([
-                dcc.Graph(id='line-graph')  # Gráfico de linhas para série temporal.
-            ], className="graph-block"), width=12)
-        ], className='mb-4'),
-
-        # Armazena dados de estado selecionados, ano e áreas de interesse.
-        dcc.Store(id='selected-states', data=[]),
-        dcc.Store(id='selected-year', data=list_anual[-1]),
-        dcc.Store(id='selected-area', data=[]),
-        dcc.Store(id='selected-areas-store', data=[]),  # Store para armazenar áreas selecionadas.
-
-        # Modal para seleção de estados.
-        dbc.Modal([
-            dbc.ModalHeader(dbc.ModalTitle("Escolha Áreas de Interesse da Amazônia Legal")),
-            dbc.ModalBody([
-                dcc.Dropdown(
-                    options=state_options,
-                    id="state-dropdown-modal",
-                    placeholder="Selecione o Estado",
-                    multi=True
-                )
-            ]),
-            dbc.ModalFooter([
-                dbc.Button("Fechar", id="close-state-modal-button", color="danger")
-            ])
-        ], id="state-modal", is_open=False),
-
-        # Modal para seleção de áreas de interesse.
-        dbc.Modal([
-            dbc.ModalHeader(dbc.ModalTitle("Escolha as Áreas de Interesse")),
-            dbc.ModalBody([
-                dcc.Dropdown(
-                    id="area-dropdown",
-                    placeholder="Selecione as Áreas de Interesse",
-                    multi=True
-                )
-            ]),
-            dbc.ModalFooter([
-                dbc.Button("Fechar", id="close-area-modal-button", color="danger")
-            ])
-        ], id="area-modal", is_open=False),
-
-        # Modal para configurar o download do CSV.
-        dbc.Modal([
-            dbc.ModalHeader(dbc.ModalTitle("Configurações para gerar o CSV")),
-            dbc.ModalBody([
-                dbc.Checklist(
-                    options=state_options,
-                    id="state-checklist",
-                    inline=True
-                ),
-                html.Hr(),
-                dbc.RadioItems(
-                    options=[
-                        {'label': 'Ponto', 'value': '.'},
-                        {'label': 'Vírgula', 'value': ','}
-                    ],
-                    value='.',
-                    id='decimal-separator',
-                    inline=True,
-                    className='mb-2'
-                ),
-                dbc.Checkbox(
-                    label="Sem acentuação",
-                    id="remove-accents",
-                    value=False
-                )
-            ]),
-            dbc.ModalFooter([
-                dbc.Button("Download", id="download-button", color="success"),
-                dbc.Button("Fechar", id="close-modal-button", color="danger")
-            ])
-        ], id="modal", is_open=False)
-    ], fluid=True)
-
-    # Função para preencher anos faltantes no DataFrame.
-    def preencher_anos_faltantes(df, anos, municipios):
-        df_agg = df.groupby(['ano', 'nome'], as_index=False).sum()  # Agrupa por ano e nome, somando áreas.
-        full_index = pd.MultiIndex.from_product([anos, municipios], names=["ano", "nome"])  # Cria índice completo.
-        df_full = df_agg.set_index(["ano", "nome"]).reindex(full_index, fill_value=0).reset_index()  # Reindexa preenchendo valores faltantes com 0.
-        return df_full
-
-    # Função para obter o centroide de um município a partir do GeoDataFrame.
-    def get_centroid(geojson, municipio_nome):
+    def get_centroid(gjson, mun):
         try:
-            gdf_municipio = geojson[geojson['NM_MUN'] == municipio_nome]  # Filtra pelo nome do município.
-            if not gdf_municipio.empty:
-                centroid = gdf_municipio.geometry.centroid.iloc[0]  # Obtém o centroide.
-                return centroid.y, centroid.x
-        except Exception as e:
-            print(f"Erro ao obter centroide para {municipio_nome}: {e}")
-        return -14, -55  # Retorna centro aproximado do Brasil caso haja erro.
+            g = gjson.loc[gjson["NM_MUN"] == mun]
+            if not g.empty:
+                c = g.geometry.centroid.iloc[0]
+                return c.y, c.x
+        except Exception: pass
+        return -14, -55
 
-    # Funções de callback do Dash para atualizar gráficos e manipular filtros e seleção de áreas.
+
+
+    # ───────── callback principal ─────────
     @app.callback(
-        # Define as saídas dos callbacks.
-        [Output('bar-graph-yearly', 'figure'),
-         Output('choropleth-map', 'figure'),
-         Output('line-graph', 'figure'),
-         Output('selected-states', 'data'),
-         Output('state-dropdown-modal', 'value'),
-         Output('selected-area', 'data'),
-         Output('area-dropdown', 'options'),
-         Output('area-dropdown', 'value'),
-         Output('selected-areas-store', 'data')],
-
-        # Define as entradas dos callbacks.
-        [Input('start-year-dropdown', 'value'),
-         Input('end-year-dropdown', 'value'),
-         Input('category-dropdown', 'value'),
-         Input('choropleth-map', 'clickData'),
-         Input('bar-graph-yearly', 'clickData'),
-         Input('state-dropdown-modal', 'value'),
-         Input('area-dropdown', 'value'),
-         Input('reset-button-top', 'n_clicks'),
-         Input('refresh-button', 'n_clicks')],
-
-        # Define os estados dos callbacks.
-        [State('selected-states', 'data'),
-         State('selected-area', 'data'),
-         State('selected-areas-store', 'data')]
+        [Output("bar-graph-yearly","figure"),
+         Output("choropleth-map","figure"),
+         Output("line-graph","figure"),
+         Output("selected-states","data"),
+         Output("state-dropdown-modal","value"),
+         Output("selected-area","data"),
+         Output("area-dropdown","options"),
+         Output("area-dropdown","value"),
+         Output("selected-areas-store","data")],
+        [Input("start-year-dropdown","value"),
+         Input("end-year-dropdown","value"),
+         Input("category-dropdown","value"),
+         Input("choropleth-map","clickData"),
+         Input("bar-graph-yearly","clickData"),
+         Input("state-dropdown-modal","value"),
+         Input("area-dropdown","value"),
+         Input("reset-button-top","n_clicks"),
+         Input("refresh-button","n_clicks")],
+        [State("selected-states","data"),
+         State("selected-area","data"),
+         State("selected-areas-store","data")]
     )
-    def update_graphs(start_year, end_year, selected_category, map_click_data, bar_click_data, selected_state, selected_area, reset_clicks, refresh_clicks, selected_states, selected_area_state, selected_areas_store):
-        """
-        Função de callback para atualizar os gráficos e seleções de área de interesse com base nos filtros aplicados.
-        """
-        # Obtenção do ID do elemento que desencadeou o callback.
-        triggered_id = [p['prop_id'] for p in callback_context.triggered][0]
+    def update_graphs(sy, ey, cat,
+                      map_click, bar_click,
+                      modal_states, modal_areas,
+                      reset, refresh,
+                      st_store, ar_store, areas_sel):
 
-        # Atribuição de valores padrão para o ano inicial e final.
-        if start_year is None:
-            start_year = 2020
-        if end_year is None:
-            end_year = 2023
+        trig = callback_context.triggered[0]["prop_id"]
 
-        start_year = int(start_year)  # Converte ano inicial para inteiro.
-        end_year = int(end_year)  # Converte ano final para inteiro.
-        df['ano'] = df['ano'].astype(int)  # Converte a coluna 'ano' do DataFrame para inteiro.
+        sy = int(sy or 2020)
+        ey = int(ey or 2023)
+        df["ano"] = df["ano"].astype(int)
 
-        # Reseta as seleções ao clicar no botão de reset.
-        if triggered_id == 'reset-button-top.n_clicks':
-            selected_states = []
-            selected_state = None
-            selected_area_state = []
-            selected_category = None
-            start_year = 2020
-            end_year = 2023
-            selected_areas_store = []
+        # reset
+        if trig.startswith("reset-button-top"):
+            st_store, modal_states = [], None
+            ar_store, areas_sel    = [], []
+            cat, sy, ey            = None, 2020, 2023
 
-        # Manipulação do clique no gráfico de barras.
-        if triggered_id == 'bar-graph-yearly.clickData' and bar_click_data:
-            clicked_area = bar_click_data['points'][0]['y']  # Identifica o município clicado.
-            if clicked_area in selected_areas_store:
-                selected_areas_store.remove(clicked_area)  # Remove a área caso esteja selecionada.
-            else:
-                selected_areas_store.append(clicked_area)  # Adiciona a área caso não esteja.
+        # clique barra
+        if trig.startswith("bar-graph-yearly") and bar_click:
+            area = bar_click["points"][0]["y"]
+            areas_sel = [a for a in areas_sel if a != area] if area in areas_sel else areas_sel + [area]
 
-        # Manipulação do clique no mapa.
-        if triggered_id == 'choropleth-map.clickData' and map_click_data:
-            selected_municipio = map_click_data['points'][0]['location']  # Identifica o município clicado no mapa.
-            if selected_municipio in df['nome'].values:
-                if selected_municipio in selected_area_state:
-                    selected_area_state.remove(selected_municipio)  # Remove a área caso esteja selecionada.
-                else:
-                    selected_area_state.append(selected_municipio)  # Adiciona a área caso não esteja.
+        # clique mapa
+        if trig.startswith("choropleth-map") and map_click:
+            area = map_click["points"][0]["location"]
+            ar_store = [a for a in ar_store if a != area] if area in ar_store else ar_store + [area]
 
-        # Define a seleção de áreas e categoria com base nos filtros.
-        if selected_area:
-            selected_area_state = selected_area
-        if selected_category:
-            if selected_category is not None:
-                df_filtered = df[df['categoria'] == selected_category]  # Filtra o DataFrame pela categoria selecionada.
-            else:
-                df_filtered = df
-        else:
-            df_filtered = df
+        # filtros
+        dff = df.copy()
+        if cat:
+            dff = dff[dff["categoria"] == cat]
+        dff = dff[(dff["ano"] >= sy) & (dff["ano"] <= ey)]
+        if modal_states:
+            dff = dff[dff["sigla_uf"].isin(modal_states)]
+        if ar_store:
+            dff = dff[dff["nome"].isin(ar_store)]
 
-        # Filtra o DataFrame pelo intervalo de anos.
-        df_filtered = df_filtered[(df_filtered['ano'] >= start_year) & (df_filtered['ano'] <= end_year)]
+        area_opts = [{"label": n, "value": n} for n in dff["nome"].unique()]
 
-        # Converte a seleção de áreas para lista.
-        if isinstance(selected_area_state, str):
-            selected_area_state = [selected_area_state]
-        elif selected_area_state is None:
-            selected_area_state = []
+        # top-10
+        top10 = (dff.groupby("nome", as_index=False)
+                   .agg(area_ha=("area_ha","sum"))
+                   .sort_values("area_ha", ascending=False)
+                   .head(10))
+        top10["nome"] = (top10["nome"]
+                         .str.encode("latin1","ignore")
+                         .str.decode("utf-8","ignore")
+                         .str.replace(r"[^\x00-\x7F]+","",regex=True))
 
-        # Filtra o DataFrame por estado e áreas selecionadas.
-        if selected_state:
-            df_filtered = df_filtered[df_filtered['sigla_uf'].isin(selected_state)]
-        if selected_area_state:
-            df_filtered = df_filtered[df_filtered['nome'].isin(selected_area_state)]
+        sel_set = set(areas_sel)
+        colors  = ["darkcyan" if n in sel_set else "lightgray"
+                   for n in top10["nome"]]
 
-        # Define as opções de áreas para o dropdown de áreas de interesse.
-        area_options = [{'label': nome, 'value': nome} for nome in df_filtered['nome'].unique()]
-        title_text = f"Categoria: {selected_category or 'Todas'}"
-
-        # Seleção das top 10 áreas por ordem decrescente de exploração.
-        df_acumulado_municipio = df_filtered.groupby('nome')['area_ha'].sum().reset_index()
-        df_top_10 = df_acumulado_municipio.sort_values(by='area_ha', ascending=False).head(10)
-
-        # Cria o gráfico de barras com top 10 áreas.
-        marker_colors = ['darkcyan' if nome in selected_areas_store else 'lightgray' for nome in df_top_10['nome']]
-        bar_yearly_fig = go.Figure(go.Bar(
-            y=df_top_10['nome'],
-            x=df_top_10['area_ha'],
-            orientation='h',
-            marker_color=marker_colors,
-            text=[f"{value:.2f} ha" for value in df_top_10['area_ha']],
-            textposition='auto'
+        bar = go.Figure(go.Bar(
+            y=top10["nome"], x=top10["area_ha"], orientation="h",
+            marker_color=colors,
+            hovertemplate="<b>%{y}</b><br>Área: %{x:.2f} ha<extra></extra>"
         ))
-
-        # Ajusta o layout do gráfico de barras para exibir valores maiores em cima.
-        bar_yearly_fig.update_layout(
-            title={'text': f"Área Acumulada de Exploração Madeireira - {title_text}", 'x': 0.5},
-            titlefont=dict(size=12),
-            width=700,
-            xaxis_title='Hectares (ha)',
-            yaxis_title='Área de Interesse',
-            bargap=0.1,
-            yaxis=dict(
-                categoryorder='array',
-                categoryarray=df_top_10.sort_values(by='area_ha', ascending=True)['nome'].tolist()
-            )
+        bar.update_layout(
+            title_text=f"Área Acumulada de Exploração Madeireira - {cat or 'Todas'}",
+            title_x=0.5,
+            autosize=True,
+            xaxis_title="Hectares (ha)",
+            yaxis_title="Área de Interesse",
+            yaxis=dict(categoryorder="array",
+                       categoryarray=top10.sort_values("area_ha")["nome"]),
+            bargap=.1,
+            margin_t=50,
+            font_size=10,
         )
 
-        # Mapa com top 10 áreas usando GeoJSON.
-        if selected_areas_store:
-            roi_selected = roi[roi['NM_MUN'].isin(selected_areas_store)]
-        else:
-            roi_selected = roi[roi['NM_MUN'].isin(df_top_10['nome'])]
-
-        # Define o centro do mapa com base na seleção.
-        if selected_area_state:
-            lat, lon = get_centroid(roi, selected_area_state[0])
-            zoom = 6
-        else:
-            lat, lon = -14, -55
-            zoom = 4
-
-        # Configura o mapa coroplético.
+        # mapa
+        roi_sel = roi[roi["NM_MUN"].isin(sel_set or top10["nome"])]
+        lat,lon = (get_centroid(roi, (ar_store or top10["nome"])[0])
+                   if ar_store else (-14,-55))
+        zoom = 6 if ar_store else 4
         map_fig = px.choropleth_mapbox(
-            df_top_10, geojson=roi_selected, color='area_ha',
-            locations="nome",
-            featureidkey="properties.NM_MUN",
+            top10, geojson=roi_sel, color="area_ha",
+            locations="nome", featureidkey="properties.NM_MUN",
             mapbox_style="carto-positron",
-            center={"lat": lat, "lon": lon},
-            color_continuous_scale='YlOrRd',
-            zoom=zoom
+            center={"lat":lat,"lon":lon},
+            zoom=zoom,
+            color_continuous_scale="YlOrRd",
+            hover_data={"nome":True,"area_ha":":.2f"},
         )
-
-        # Ajusta o layout do mapa.
         map_fig.update_layout(
-            coloraxis_colorbar=dict(title="Hectares"),
-            margin={"r": 0, "t": 50, "l": 0, "b": 0},
-            title={'text': f"Mapa de Exploração Madeireira (ha) - {title_text}", 'x': 0.5}
+            autosize=True,
+            margin_r=0, margin_l=0, margin_b=0,
+            title={"text":f"Mapa de Exploração Madeireira (ha) - {cat or 'Todas'}",
+                   "x":0.5},
         )
 
-        # Gráfico de linha para áreas selecionadas ou top 10.
-        if selected_areas_store:
-            areas_to_plot = selected_areas_store
-        else:
-            areas_to_plot = df_top_10['nome']
-
-        # Agrupamento de dados para gráfico de linhas.
-        df_line = df_filtered[df_filtered['nome'].isin(areas_to_plot)].groupby(['ano', 'nome', 'sigla_uf'])['area_ha'].sum().reset_index()
-        df_line_full = preencher_anos_faltantes(df_line, sorted(df_filtered['ano'].unique()), areas_to_plot)
-        line_fig = px.line(df_line_full, x='ano', y='area_ha', color='nome',
-                        title=f'Série Histórica de Área de Exploração Madeireira - {title_text}',
-                        labels={'area_ha': 'Área por ano (ha)', 'ano': 'Ano'},
-                        template='plotly_white', line_shape='linear')
-        line_fig.update_traces(mode='lines+markers')
-        line_fig.update_layout(
-            xaxis_title='Ano',
-            yaxis_title='Área por ano (ha)',
-            font=dict(size=10),
-            yaxis=dict(tickformat=".0f"),
-            legend_title_text='Município',
-            title_x=0.5
+        # linha
+        focus = areas_sel if areas_sel else top10["nome"]
+        dfl = (dff[dff["nome"].isin(focus)]
+               .groupby(["ano","nome"])["area_ha"].sum().reset_index())
+        dfl = preencher_anos_faltantes(dfl, range(sy,ey+1), focus)
+        line = px.line(
+            dfl, x="ano", y="area_ha", color="nome",
+            labels={"area_ha":"Área (ha)","ano":"Ano"},
+            template="plotly_white",
+        )
+        line.update_traces(mode="lines+markers")
+        line.update_layout(
+            autosize=True,
+            title_text=f"Série Histórica <br> de Área de Exploração Madeireira - {cat or 'Todas'}",
+            title_x=0.5,
+            yaxis_tickformat=".0f",
+            legend_orientation="h",
+            legend_y=-0.2,
         )
 
-        # Retorno das figuras e dados para armazenar.
-        return bar_yearly_fig, map_fig, line_fig, selected_states, selected_state, selected_area_state, area_options, None, selected_areas_store
+        return bar, map_fig, line, st_store, modal_states, ar_store, \
+               area_opts, None, areas_sel
 
+    # ───────── modais & download (mesma lógica) ─────────
+    for _open,_close,_modal in [
+        ("open-state-modal-button","close-state-modal-button","state-modal"),
+        ("open-area-modal-button", "close-area-modal-button", "area-modal"),
+        ("open-modal-button",      "close-modal-button",      "modal")
+    ]:
+        @app.callback(Output(_modal,"is_open"),
+                      [Input(_open,"n_clicks"),Input(_close,"n_clicks")],
+                      State(_modal,"is_open"))
+        def toggle_modal(n1,n2,is_open):
+            if n1 or n2: return not is_open
+            return is_open
 
-    # Callback para abrir e fechar o modal de seleção de estado.
     @app.callback(
-        Output("state-modal", "is_open"),
-        [Input("open-state-modal-button", "n_clicks"), Input("close-state-modal-button", "n_clicks")],
-        [State("state-modal", "is_open")]
-    )
-    def toggle_state_modal(n1, n2, is_open):
-        if n1 or n2:
-            return not is_open
-        return is_open
+        Output("download-dataframe-csv","data"),
+        Input("download-button","n_clicks"),
+        State("state-checklist","value"),
+        State("decimal-separator","value"),
+        State("remove-accents","value"))
+    def download_csv(n, states, dec, rm_acc):
+        if not n: return dash.no_update
+        dff = df if not states else df[df["sigla_uf"].isin(states)]
+        if rm_acc:
+            dff = dff.applymap(lambda x: unidecode.unidecode(x)
+                               if isinstance(x,str) else x)
+        return dcc.send_data_frame(dff.to_csv,
+                                   "degradacao_amazonia.csv",
+                                   sep=dec, index=False)
 
-    # Callback para abrir e fechar o modal de seleção de áreas.
-    @app.callback(
-        Output("area-modal", "is_open"),
-        [Input("open-area-modal-button", "n_clicks"), Input("close-area-modal-button", "n_clicks")],
-        [State("area-modal", "is_open")]
-    )
-    def toggle_area_modal(n1, n2, is_open):
-        if n1 or n2:
-            return not is_open
-        return is_open
-
-    # Callback para abrir e fechar o modal de download.
-    @app.callback(
-        Output("modal", "is_open"),
-        [Input("open-modal-button", "n_clicks"), Input("close-modal-button", "n_clicks")],
-        [State("modal", "is_open")]
-    )
-    def toggle_modal(n1, n2, is_open):
-        if n1 or n2:
-            return not is_open
-        return is_open
-
-    # Callback para gerar e fazer download do CSV filtrado.
-    @app.callback(
-        Output("download-dataframe-csv", "data"),
-        [Input("download-button", "n_clicks")],
-        [State("state-checklist", "value"), State("decimal-separator", "value"), State("remove-accents", "value")]
-    )
-    def download_csv(n_clicks, selected_states, decimal_separator, remove_accents):
-        if n_clicks is None or n_clicks == 0:
-            return dash.no_update
-
-        print(f"Download button clicked {n_clicks} times")
-        print(f"Selected States: {selected_states}")
-
-        if selected_states:
-            filtered_df = df[df['sigla_uf'].isin(selected_states)]  # Filtra pelo estado selecionado.
-        else:
-            filtered_df = df
-
-        print(f"Filtered DataFrame shape: {filtered_df.shape}")
-
-        if remove_accents:
-            filtered_df = filtered_df.applymap(lambda x: unidecode.unidecode(x) if isinstance(x, str) else x)  # Remove acentos se selecionado.
-
-        return dcc.send_data_frame(filtered_df.to_csv, "degradacao_amazonia.csv", sep=decimal_separator, index=False)
+    return app

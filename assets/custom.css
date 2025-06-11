@@ -1,0 +1,12 @@
+/* assets/custom.css */
+.custom-button,
+.custom-button:hover,
+.custom-button:focus,
+.custom-button:active {
+  background-color:#28a745!important;
+  border-color:#28a745!important;
+  color:#fff!important;
+}
+.label-fit{display:inline-block;width:auto;white-space:nowrap;font-weight:600;margin-right:6px}
+.graph-block{min-height:350px} @media(max-width:576px){.graph-block{min-height:275px}}
+
