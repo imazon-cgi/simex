@@ -1,8 +1,0 @@
-# Ignorar a pasta assets
-asset/
-
-# Ignorar a pasta orientação
-orientação/
-
-# Ignorar o arquivo data_analisys.py
-data_analisys.py
