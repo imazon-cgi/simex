@@ -617,36 +617,23 @@
         </div>
     </div>
 
+    
     <!-- Painel de Estatísticas -->
     <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="stat-card">
-                <div class="stat-label">Área Total</div>
-                <div class="stat-value" id="total-area">0 km²</div>
-                <div>no período selecionado</div>
-            </div>
+      <div class="col-md-6">
+        <div class="stat-card">
+          <div class="stat-label">Área Total</div>
+          <div class="stat-value" id="total-area">0 ha</div>
+          <div>no período selecionado</div>
         </div>
-        <div class="col-md-3">
-            <div class="stat-card" style="background-color: #e65100;">
-                <div class="stat-label">Área Média Mensal</div>
-                <div class="stat-value" id="avg-area">0 km²</div>
-                <div>em <span id="current-year">2024</span></div>
-            </div>
+      </div>
+      <div class="col-md-6">
+        <div class="stat-card" style="background-color: #006064;">
+          <div class="stat-label">Territórios Afetados</div>
+          <div class="stat-value" id="affected-count">0</div>
+          <div>no período</div>
         </div>
-        <div class="col-md-3">
-            <div class="stat-card" style="background-color: #006064;">
-                <div class="stat-label">Territórios Afetados</div>
-                <div class="stat-value" id="affected-count">0</div>
-                <div>no período</div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card" style="background-color: #37474f;">
-                <div class="stat-label">Variação Anual</div>
-                <div class="stat-value" id="annual-change">0%</div>
-                <div>em relação ao ano anterior</div>
-            </div>
-        </div>
+      </div>
     </div>
 
     <!-- Gráficos e Mapa -->
@@ -707,7 +694,7 @@
             <div class="card">
                 <div class="card-header">
                   <div class="chart-header-container d-flex justify-content-between align-items-center">
-                    <div class="chart-title"><i class="fas fa-chart-line me-2"></i>Série Histórica (Top 10)</div>
+                    <div class="chart-title"><i class="fas fa-chart-line me-2"></i>Gráfico Série Histórica</div>
                     <div class="d-flex align-items-center">
                       <div class="download-group">
                         <button class="btn btn-sm btn-outline-secondary download-btn" id="download-line-csv">
@@ -922,7 +909,14 @@
     RJ:'Rio de Janeiro', RN:'Rio Grande do Norte', RO:'Rondônia', RR:'Roraima', RS:'Rio Grande do Sul',
     SC:'Santa Catarina', SE:'Sergipe', SP:'São Paulo', TO:'Tocantins'
   };
-
+  
+  const NAME_TO_UF = Object.fromEntries(
+  Object.entries(UF_NAMES).map(([uf, nome]) => [normalizeName(nome), uf])
+);
+const UF_BY_NAME = Object.fromEntries(Object.entries(UF_NAMES)
+  .map(([uf, nome]) => [nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''), uf]));
+const norm = s => (s ?? '').toString().trim().toLowerCase()
+              .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   // Estados da Amazônia Legal
   const AMAZONIA_LEGAL_UF = ['AC', 'AP', 'AM', 'MT', 'PA', 'RO', 'RR', 'TO', 'MA'];
   
@@ -941,7 +935,26 @@
   }
 
   Chart.register(ChartDataLabels);
+  Chart.defaults.elements.line.tension = 0;
+  
+  Chart.defaults.font.family = "'Montserrat', sans-serif";
+  Chart.defaults.font.size   = 12;
+  Chart.defaults.font.weight = '500';
 
+  Chart.defaults.datasets.line.cubicInterpolationMode = 'default';
+
+  
+  Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(0,0,0,.85)';
+  Chart.defaults.plugins.tooltip.borderColor = '#444';
+  Chart.defaults.plugins.tooltip.borderWidth = 1;
+  Chart.defaults.plugins.tooltip.titleColor = '#fff';
+  Chart.defaults.plugins.tooltip.bodyColor = '#fff';
+  Chart.defaults.plugins.tooltip.titleFont = { family: "'Montserrat', sans-serif", weight: '600' };
+  Chart.defaults.plugins.tooltip.bodyFont  = { family: "'Montserrat', sans-serif" };
+
+  
+  Chart.defaults.plugins.datalabels.font = { family: "'Montserrat', sans-serif", weight: 'bold', size: 12 };
+  Chart.defaults.plugins.datalabels.color = '#212121';
   // Seleções
   let selectedTerras = [];
   let selectedMunicipios = [];
@@ -950,7 +963,9 @@
   let selectedAssentamentos  = [];
   let selectedTerrasSemDestinacao = [];
   let selectedUCs = [];
-  
+  let amazonBordersLayer = null;     
+  let amazonBordersCache = null;     
+
   // Dados atuais
   let currentBarData = { labels: [], values: [] };
   let currentLineData = { labels: [], datasets: [] };
@@ -1068,9 +1083,8 @@ const DATASET_LABELS = {
   const faseFilterGroup = document.getElementById('faseFilterGroup');
   const applyBtn = document.getElementById('apply-filters');
   const totalAreaEl = document.getElementById('total-area');
-  const avgAreaEl = document.getElementById('avg-area');
+  
   const affectedCountEl = document.getElementById('affected-count');
-  const annualChangeEl = document.getElementById('annual-change');
   const selectedNameEl = document.getElementById('selected-name');
   const selectedRankEl = document.getElementById('selected-rank');
   const selectedAreaEl = document.getElementById('selected-area');
@@ -1083,10 +1097,80 @@ const DATASET_LABELS = {
   const analysisBtn = document.getElementById('analysis-btn');
 
   // Variáveis globais
-  let currentDataset = 'assentamentos';
+  let currentDataset = 'estados';
   let currentCategoryFilter = 'all';
   let csvData = [], geojson, featureMap = new Map();
   let barChart, lineChart, yearlyChart, map, geoLayer;
+// Normalização simples
+const _norm = s => (s ?? '').toString().trim().toUpperCase();
+
+// Gera (uma vez) o contorno dos 9 estados da Amazônia Legal a partir dos municípios
+async function ensureAmazoniaBorders() {
+  // já temos em cache?
+  if (amazonBordersCache) return amazonBordersCache;
+
+  if (!geojson || !Array.isArray(geojson.features) || !geojson.features.length) return null;
+
+  // Identifica se o geo atual é municipal (precisamos do campo sigla_uf/UF)
+  const p0 = geojson.features[0].properties || {};
+  const hasUF = ('sigla_uf' in p0) || ('UF' in p0);
+  if (!hasUF) return null;
+
+  // Agrupa municípios por UF da Amazônia Legal
+  const byUF = new Map();
+  for (const f of geojson.features) {
+    const uf = _norm(f.properties.sigla_uf || f.properties.UF || '');
+    if (!uf || !AMAZONIA_LEGAL_UF.includes(uf)) continue;
+    if (!byUF.has(uf)) byUF.set(uf, []);
+    byUF.get(uf).push(f);
+  }
+
+  // Para cada UF → dissolve municípios em um polígono de estado
+  const stateFeatures = [];
+  for (const [uf, feats] of byUF.entries()) {
+    let merged = null;
+    for (const feat of feats) {
+      // evita problemas com geometrias inválidas
+      if (!feat.geometry || feat.geometry.type === 'GeometryCollection') continue;
+      try {
+        const poly = turf.feature(feat.geometry, {});
+        merged = merged ? turf.union(merged, poly) : poly;
+      } catch (e) {
+        // se der erro com algum muni, ignora o muni e segue
+      }
+    }
+    if (!merged) continue;
+    // garante MultiPolygon/Polygon válido
+    merged.properties = { uf, nome: UF_NAMES[uf] || uf };
+    stateFeatures.push(merged);
+  }
+
+  amazonBordersCache = { type: 'FeatureCollection', features: stateFeatures };
+  return amazonBordersCache;
+}
+
+// Adiciona a camada de borda (sem fill) ao mapa
+async function addAmazoniaBorders() {
+  // remove a anterior
+  if (amazonBordersLayer) {
+    map.removeLayer(amazonBordersLayer);
+    amazonBordersLayer = null;
+  }
+
+  const bordersGeo = await ensureAmazoniaBorders();
+  if (!bordersGeo || !bordersGeo.features?.length) return;
+
+  amazonBordersLayer = L.geoJSON(bordersGeo, {
+    style: () => ({
+      color: '#0f5132',     // verde-escuro (combina com a paleta)
+      weight: 2,
+      opacity: 1,
+      fill: false,          // só a borda
+      dashArray: null       // pode usar '4,3' se quiser tracejado
+    }),
+    interactive: false
+  }).addTo(map);
+}
 
   // Auxiliares
   function downloadCSV(content, fileName) {
@@ -1111,7 +1195,7 @@ const DATASET_LABELS = {
       .then(canvas => { downloadPNG(canvas, `mapa-exploracao-${currentDataset}-${new Date().toISOString().slice(0,10)}.png`); });
   }
   function downloadBarChartCSV() {
-    const rows = ['Nome,Área (km²)'];
+    const rows = ['Nome,Área (ha)'];
     for (let i = 0; i < currentBarData.labels.length; i++) {
       rows.push(`"${currentBarData.labels[i]}",${currentBarData.values[i]}`);
     }
@@ -1127,7 +1211,7 @@ const DATASET_LABELS = {
     downloadCSV(rows.join('\\n'), `serie-historica-top10-${currentDataset}-${yearFilter.value}.csv`);
   }
   function downloadYearlyChartCSV() {
-    const rows = ['Ano,Área (km²)'];
+    const rows = ['Ano,Área (ha)'];
     for (let i = 0; i < currentYearlyData.labels.length; i++) {
       rows.push(`${currentYearlyData.labels[i]},${currentYearlyData.values[i]}`);
     }
@@ -1182,41 +1266,46 @@ const DATASET_LABELS = {
     geojson = await geoResponse.json();
 
     // NOVO: dissolver municípios por UF quando dataset=estados
-    if (currentDataset === 'estados') {
-      const byUF = new Map();
-      for (const f of geojson.features) {
-        const uf = (f.properties?.sigla_uf || f.properties?.UF || '').trim();
-        if (!uf) continue;
-        if (!byUF.has(uf)) byUF.set(uf, []);
-        byUF.get(uf).push(f);
-      }
-      const stateFeatures = [];
-      for (const [uf, feats] of byUF.entries()) {
-        let merged = null;
-        for (const feat of feats) {
-          try {
-            const poly = turf.feature(feat.geometry, {});
-            merged = merged ? turf.union(merged, poly) : poly;
-          } catch(e) {
-            // fallback: se union falhar em algum par, apenas usa o primeiro
-            if (!merged) merged = feat;
-          }
-        }
-        if (!merged) continue;
-        merged.properties = { estado_sigla: uf, estado_nome: UF_NAMES[uf] || uf };
-        stateFeatures.push(merged);
-      }
-      geojson = { type: 'FeatureCollection', features: stateFeatures };
-    }
-    
-    // featureMap por nome apropriado
     featureMap.clear();
-    geojson.features.forEach(f => {
-      const name = (currentDataset === 'estados')
-        ? (f.properties?.estado_nome)
-        : f.properties[spec.geoField];
-      if (name) featureMap.set(name, f);
+    // featureMap por nome apropriado
+featureMap.clear();
+
+if (currentDataset === 'estados') {
+  // Agrupa feições por UF para calcular bounds e reutilizar depois
+  const byUF = new Map();
+  for (const f of geojson.features) {
+    const uf = (f.properties?.sigla_uf || f.properties?.UF || '').trim();
+    if (!uf) continue;
+    if (!byUF.has(uf)) byUF.set(uf, []);
+    byUF.get(uf).push(f);
+  }
+  for (const [uf, feats] of byUF.entries()) {
+    const name = UF_NAMES[uf] || uf;
+
+    // bounds do estado somando bounds dos seus municípios
+    let bounds = null;
+    feats.forEach(feat => {
+      const b = L.geoJSON(feat).getBounds();
+      bounds = bounds ? bounds.extend(b) : b;
     });
+
+    // guardamos um “descritor” do estado
+    const descriptor = { type: 'estado', uf, name, feats, bounds };
+    featureMap.set(name, descriptor);
+    featureMap.set(normalizeName(name), descriptor);
+  }
+} else {
+  // Demais datasets: mapeamento simples nome->feature
+  const spec = DATASETS[currentDataset];
+  geojson.features.forEach(f => {
+    const name = f.properties[spec.geoField];
+    if (name) {
+      featureMap.set(name, f);
+      featureMap.set(normalizeName(name), f);
+    }
+  });
+}
+
     
     // CSV
     const csvResponse = await fetch(spec.csv);
@@ -1244,76 +1333,265 @@ const DATASET_LABELS = {
   };
 
   const updateStats = (aggData, filtered, year) => {
-    const total = Object.values(aggData).reduce((s, a) => s + a, 0);
-    totalAreaEl.textContent = total.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' km²';
+  const total = Object.values(aggData).reduce((s, a) => s + a, 0);
+  totalAreaEl.textContent = total.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' ha';
 
-    const entities = Object.keys(aggData).length;
-    affectedCountEl.textContent = entities;
 
-    const months = new Set(filtered.map(d => d.month !== null ? `${d.year}-${d.month}` : `${d.year}`)).size || 1;
-    const avg = total / months;
-    avgAreaEl.textContent = avg.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' km²';
+  const entities = Object.keys(aggData).length;
+  affectedCountEl.textContent = entities;
+};
 
-    const prev = csvData.filter(d => d.year === year - 1).reduce((s, d) => s + d.area, 0);
-    const curr = csvData.filter(d => d.year === year).reduce((s, d) => s + d.area, 0);
-    const varPct = prev > 0 ? ((curr - prev) / prev) * 100 : 0;
+const LINECHART_PRESET = {
+  datasetStyle: (color) => ({
+    borderColor: color,
+    backgroundColor: color,
+    borderWidth: 2.5,
+    fill: false,
+    pointRadius: 3.5,
+    pointHoverRadius: 6,
+    pointBorderColor: '#fff',
+    pointBorderWidth: 1.5,
+    pointStyle: 'circle',
+    spanGaps: true,
+    tension: 0,
+    cubicInterpolationMode: 'default',
+    clip: false
+  }),
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    elements: { line: { tension: 0 } },
+    plugins: {
+      // 👇 ATIVAR E ESTILIZAR A LEGENDA
+      legend: {
+  display: true,
+  position: 'top',
+  align: 'end', 
+  labels: {
+    usePointStyle: true,
+    pointStyle: 'circle',
+    boxWidth: 10,
+    boxHeight: 10,
+    padding: 14,
+    font: { family: "'Montserrat', sans-serif", size: 11, weight: '600' },
+    color: '#1f2937'
+  }
+      },
+      datalabels: false,
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const v = ctx.parsed.y ?? 0;
+            return v.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' ha';
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+         grid: { display: false }, 
+        title: {
+          display: true,
+          text: 'Área (ha)',
+          font: { family: "'Montserrat', sans-serif", size: 12, weight: '600' },
+          color: '#374151'
+        },
+        ticks: { callback: v => Number(v).toLocaleString('pt-BR') }
+      },
+      x: {
+        grid: { display: false },
+        title: {
+          display: true,
+          text: 'Ano',
+          font: { family: "'Montserrat', sans-serif", size: 12, weight: '600' },
+          color: '#374151'
+        },
+        ticks: { maxRotation: 40, minRotation: 40, autoSkip: false }
+      }
+    }
+  }
+};
 
-    annualChangeEl.textContent = varPct.toFixed(1) + '%';
-    annualChangeEl.style.color = varPct > 0 ? '#ff5252' : '#4caf50';
-    document.getElementById('current-year').textContent = year;
-  };
+function wrapLabelToTwoLines(label, maxLineLen=28){
+  const words = String(label).split(' ');
+  const lines = [''];
+  words.forEach(w=>{
+    const last = lines[lines.length-1];
+    if((last + ' ' + w).trim().length <= maxLineLen){
+      lines[lines.length-1] = (last ? last + ' ' : '') + w;
+    }else if(lines.length < 2){
+      lines.push(w);
+    }
+  });
+  if(lines.length > 2){ lines.length = 2; }
+  const allWordsLen = words.join(' ').length;
+  const joined = lines.join(' ');
+  if(joined.length < allWordsLen && lines.length === 2){
+    if(lines[1].length > 3){ lines[1] = lines[1].slice(0, Math.max(0, lines[1].length - 3)) + '...'; }
+    else{ lines[1] = lines[1] + '...'; }
+  }
+  return lines;
+}
+function getBarLayoutFor(nBars, dataset){
+  // defaults
+  let barThickness = 20;
+  let gap = 16;
+  let minHeight = 300;
+  let padding = { top: 20, right: 60, left: 12, bottom: 20 };
 
-  const updateBarChart = (labels, values) => {
-    const barCanvas    = document.getElementById('barChart');
-    const barContainer = barCanvas.parentNode;
-    barContainer.style.height = (labels.length * 45) + 'px';
-    if (barChart) barChart.destroy();
+  // por camada (casos com nomes longos ou poucas barras)
+  if (dataset === 'estados')     { padding.left = 18; minHeight = 360; }
+  if (dataset === 'municipios')  { padding.left = 22; minHeight = 380; }
+  if (dataset === 'terras')      { padding.left = 20; }
+  if (dataset === 'imoveis')     { padding.left = 20; }
 
-    const max = Math.max(...values, 0);
-    const scale = d3.scaleSequential(d3.interpolateReds).domain([0, max || 1]);
-    currentBarData = { labels, values };
-    const isMobile = window.matchMedia('(max-width: 576px)').matches;
+  // por quantidade de barras (preencher melhor o card)
+  if (nBars <= 3){
+    barThickness = 28; gap = 22; minHeight = Math.max(minHeight, 360);
+    padding.right = 70;
+  } else if (nBars <= 7){
+    barThickness = 24; gap = 18; minHeight = Math.max(minHeight, 340);
+  } else if (nBars <= 12){
+    barThickness = 20; gap = 16; minHeight = Math.max(minHeight, 320);
+  } else {
+    barThickness = 18; gap = 14; // muitas barras: mais compacto
+  }
 
-    barChart = new Chart(barCanvas.getContext('2d'), {
-      type: 'bar',
-      data: { labels, datasets: [{
+  // mobile: um pouco mais alto para caber labels em duas linhas
+  const isMobile = window.matchMedia('(max-width: 576px)').matches;
+  if (isMobile){
+    barThickness = Math.max(16, barThickness - 2);
+    gap = Math.max(10, gap - 4);
+    minHeight = Math.max(300, minHeight - 20);
+    padding.left += 4;
+    padding.right += 4;
+  }
+
+  return { barThickness, gap, minHeight, padding };
+}
+
+ const updateBarChart = (labels, values) => {
+  const barCanvas    = document.getElementById('barChart');
+  const barContainer = barCanvas.parentNode;
+
+  
+  const n = labels.length;
+  const { barThickness, gap, minHeight, padding } = getBarLayoutFor(n, currentDataset);
+  const targetHeight = Math.max(minHeight, n * (barThickness + gap));
+  barContainer.style.height = `${targetHeight}px`;
+
+  if (barChart) barChart.destroy();
+
+  
+  const max = Math.max(...values, 0);
+  const scale = d3.scaleSequential(d3.interpolateReds).domain([0, max || 1]);
+
+  
+  const wrappedLabels = (typeof wrapLabelToTwoLines === 'function')
+    ? labels.map(l => wrapLabelToTwoLines(l, 28))
+    : labels;
+
+  currentBarData = { labels, values };
+  const isMobile = window.matchMedia('(max-width: 576px)').matches;
+
+  barChart = new Chart(barCanvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: wrappedLabels,
+      datasets: [{
         data: values,
         backgroundColor: values.map(scale),
         borderColor:     values.map(scale),
-        borderWidth: 1,
-        borderRadius: 4,
-        barPercentage: 0.5,
-        categoryPercentage: 0.7
-      }]},
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        layout: { padding: { right: 50 } },
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => 'Área: ' + ctx.raw.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' km²' } },
-          datalabels: isMobile ? false : {
-            color: '#212121', anchor: 'end', align: 'right',
-            formatter: v => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 }),
-            font: { weight: '600', size: 12 }
-          }
-        },
-        scales: { x: { beginAtZero: true, grid: { display: false } }, y: { grid: { display: false } } },
-        onClick: (e, els) => {
-          if (els.length > 0) {
-            const idx  = els[0].index;
-            const name = labels[idx];
-            const feat = featureMap.get(name);
-            if (feat) {
-              map.fitBounds(L.geoJSON(feat).getBounds(), { padding: [50, 50], animate: true });
-            }
-          }
-        }
+        borderWidth: 0,
+        borderSkipped: false,
+        borderRadius: { topLeft: 6, bottomLeft: 6, topRight: 6, bottomRight: 6 },
+        barThickness,
+        maxBarThickness: barThickness,
+        barPercentage: 0.9,
+        categoryPercentage: 0.7,
+        clip: false
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding },
+
+      onHover: (evt, els) => { evt.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+      onClick: (e, els) => {
+  if (!els.length) return;
+  const idx  = els[0].index;
+  const name = labels[idx]; // label original
+
+  
+  const props0 = geojson.features[0]?.properties || {};
+  const hasSiglaUF = 'sigla_uf' in props0 || 'UF' in props0;
+
+  if (currentDataset === 'estados' && hasSiglaUF) {
+    const uf = UF_BY_NAME[norm(name)];
+    if (!uf) return;
+    const muniFeats = geojson.features.filter(f =>
+      (f.properties.sigla_uf || f.properties.UF || '').toString().trim() === uf
+    );
+    if (!muniFeats.length) return;
+    const group = L.featureGroup(muniFeats.map(f => L.geoJSON(f)));
+    map.fitBounds(group.getBounds(), { padding: [50, 50], animate: true });
+  } else {
+    const feat = featureMap.get(name);
+    if (feat) map.fitBounds(L.geoJSON(feat).getBounds(), { padding: [50, 50], animate: true });
+  }
+},
+
+
+      plugins: {
+  legend: { display: false },
+  tooltip: {
+    callbacks: {
+      label: ctx => `Área: ${ctx.raw.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`
+    }
+  },
+  datalabels: isMobile ? false : {
+    anchor: 'end',
+    align: 'right',
+    offset: 6,
+    clamp: true,
+    formatter: v => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+  }
+},
+scales: {
+  x: {
+    beginAtZero: true,
+    grid: { display: false },
+    title: {
+      display: true,
+      text: 'Área (ha)',
+      font: { family: "'Montserrat', sans-serif", weight: '600', size: 12 },
+      color: '#374151',
+      padding: { top: 8 }
+    }
+  },
+  y: {
+    grid: { display: false },
+    ticks: {
+      callback: function (value) {
+        const lab = this.getLabelForValue(value);
+        return Array.isArray(lab) ? lab : [lab];
       },
-      plugins: [ChartDataLabels]
-    });
-  };
+      autoSkip: false
+    },
+    title: {
+      display: false
+    }
+  }
+}
+},
+    plugins: [ChartDataLabels]
+  });
+};
+
+
 
   const updateYearlyChart = () => {
     const yearlyCanvas = document.getElementById('yearlyChart');
@@ -1340,115 +1618,206 @@ maxBarThickness: 25
     }]
   },
   options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      datalabels: isMobile ? false : {
-        color: '#212121',
-        anchor: 'end',
-        align: 'end',
-        formatter: v => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 }),
-        font: { weight: '600', size: 12 }
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    datalabels: isMobile ? false : {
+      anchor: 'end',
+      align: 'end',
+      formatter: v => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 }),
+      font: { family: "'Montserrat', sans-serif", weight: 'bold', size: 10 },
+      color: '#212121'
+    }
+  },
+  scales: {
+    y: {
+      beginAtZero: true,
+      grid: { display: false },
+      title: {
+        display: true, text: 'Área (ha)',
+        font: { family: "'Montserrat', sans-serif", weight: '600', size: 12 },
+        color: '#374151'
       }
     },
-    scales: {
-      y: { 
-        beginAtZero: true, 
-        grid: { display: false }, 
-        title: { display: true, text: 'Área (km²)' } 
+    x: {
+      grid: { display: false },
+      title: {
+        display: true, text: 'Ano',
+        font: { family: "'Montserrat', sans-serif", weight: '600', size: 12 },
+        color: '#374151'
       },
-      x: {
-  ticks: {
-    callback: (val, index, ticks) => {
-      // Exibe só de 2 em 2 anos
-      return index % 2 === 0 ? years[index] : '';
+      ticks: {
+        // manter de 2 em 2, como você fez
+        callback: (val, index) => (index % 2 === 0 ? years[index] : '')
+      }
     }
   }
 }
-    }
-  },
+,
   plugins: [ChartDataLabels]
 });
 
   };
 
   const updateLineChart = (year, topNames) => {
-    const ctx = document.getElementById('lineChart').getContext('2d');
-    if (lineChart) lineChart.destroy();
-    const years = [...new Set(csvData.map(d => d.year))].sort((a, b) => a - b);
-    const colors = d3.schemeTableau10;
-    const datasets = topNames.map((nm, i) => {
-      const color = colors[i % colors.length];
-      return {
-        label: nm,
-        data: years.map(y => csvData.filter(d => d.year === y && d.name === nm).reduce((s, d) => s + d.area, 0)),
-        borderColor: color, backgroundColor: color,
-        pointBorderColor: color, pointBackgroundColor: color,
-        pointStyle: 'circle', pointRadius: 5, pointHoverRadius: 7, tension: 0.4, fill: false
-      };
-    });
-    currentLineData = { labels: years, datasets };
-    lineChart = new Chart(ctx, {
-      type: 'line',
-      data: { labels: years, datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'top', align: 'center', labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, boxWidth: 15 } },
-          datalabels: false
-        },
-        scales: {
-          y: { beginAtZero: true, grid: { display: false }, title: { display: true, text: 'Área (km²)' } },
-          x: { grid: { display: false }, title: { display: true, text: 'Ano' } }
-        }
-      }
-    });
+  const ctx = document.getElementById('lineChart').getContext('2d');
+  if (lineChart) lineChart.destroy();
+
+  const years = [...new Set(csvData.map(d => d.year))].sort((a,b)=>a-b);
+  const colors = d3.schemeTableau10;
+
+  const datasets = topNames.map((nm, i) => {
+  const c = colors[i % colors.length];
+  return {
+    label: nm,
+    data: years.map(y =>
+      csvData.filter(d => d.year === y && d.name === nm)
+             .reduce((s,d)=> s + d.area, 0)
+    ),
+    ...LINECHART_PRESET.datasetStyle(c)
+  };
+});
+
+currentLineData = { labels: years, datasets };
+
+  currentLineData = { labels: years, datasets };
+
+  lineChart = new Chart(ctx, {
+  type: 'line',
+  data: { labels: years, datasets },
+  options: LINECHART_PRESET.options
+});
+  
+};
+
+ const updateMap = (aggData, namesToShow) => {
+  if (geoLayer) geoLayer.remove();
+  if (!geojson || !Array.isArray(geojson.features) || !namesToShow?.length) return;
+
+  // detecção do tipo de geometria carregada
+  const props0 = geojson.features[0]?.properties || {};
+  const hasEstadoNome = 'estado_nome' in props0;              // dissolve já feito
+  const hasSiglaUF    = 'sigla_uf' in props0 || 'UF' in props0; // municipal
+
+  // escala de cor pela área agregada
+  const maxVal = Math.max(...namesToShow.map(n => aggData[n] || 0), 0);
+  const colorScale = d3.scaleSequential(d3.interpolateReds).domain([0, maxVal || 1]);
+
+  // Sanitizar geometrias que o Leaflet não renderiza bem
+  const okGeom = f => {
+    const g = f?.geometry;
+    if (!g || g.type === 'GeometryCollection') return false;
+    return true;
   };
 
-  const updateMap = (aggData, namesToShow) => {
-    if (geoLayer) geoLayer.remove();
-    const features = geojson.features.filter(f => {
-      const name = (currentDataset === 'estados')
-        ? f.properties['estado_nome']
-        : f.properties[DATASETS[currentDataset].geoField];
-      return namesToShow.includes(name);
+  let featuresToDraw = [];
+  // --- ESTADOS via MUNICÍPIOS: pinta todos os municípios do(s) estado(s) ---
+  if (currentDataset === 'estados' && hasSiglaUF) {
+    // estados solicitados -> UFs
+    const wantedUFs = new Set(
+      namesToShow.map(n => UF_BY_NAME[norm(n)]).filter(Boolean)
+    );
+
+    // filtra municípios só das UFs desejadas
+    featuresToDraw = geojson.features.filter(f => {
+      const uf = (f.properties.sigla_uf || f.properties.UF || '').toString().trim();
+      return uf && wantedUFs.has(uf) && okGeom(f);
     });
-    if (!features.length) return;
-    const max = Math.max(...namesToShow.map(n => aggData[n] || 0), 0);
-    const scale = d3.scaleSequential(d3.interpolateReds).domain([0, max || 1]);
-    geoLayer = L.geoJSON(features, {
+
+    // cria uma função que devolve o "nome do estado" para cada município
+    const muniToStateName = f => {
+      const uf = (f.properties.sigla_uf || f.properties.UF || '').toString().trim();
+      return UF_NAMES[uf] || uf;
+    };
+
+    geoLayer = L.geoJSON(featuresToDraw, {
       style: f => {
-        const name = (currentDataset === 'estados')
-          ? f.properties['estado_nome']
-          : f.properties[DATASETS[currentDataset].geoField];
-        const val = aggData[name] || 0;
-        return { fillColor: scale(val), weight: 1, color: '#333', fillOpacity: 0.7 };
+        const stateName = muniToStateName(f);
+        const v = aggData[stateName] || 0;
+        return {
+          color: '#555',
+          weight: 0.6,
+          fillColor: colorScale(v),
+          fillOpacity: 0.7
+        };
       },
-      onEachFeature: (f, l) => {
-        const name = (currentDataset === 'estados')
-          ? f.properties['estado_nome']
-          : f.properties[DATASETS[currentDataset].geoField];
-        const val = aggData[name] || 0;
-        const rank = namesToShow.indexOf(name) + 1;
-        l.bindPopup(`<b>${rank}º - ${name}</b><br>Área: ${val.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} km²`);
-        l.on({
+      onEachFeature: (f, layer) => {
+        const stateName = muniToStateName(f);
+        const v = aggData[stateName] || 0;
+        const rank = namesToShow.findIndex(n => norm(n) === norm(stateName)) + 1;
+
+        layer.on({
           mouseover: e => {
-            e.target.setStyle({ weight: 3 });
-            if (selectedNameEl && selectedAreaEl && selectedRankEl && infoPanel) {
-              selectedNameEl.textContent = name;
-              selectedAreaEl.textContent = val.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' km²';
+            e.target.setStyle({ weight: 2 });
+            if (infoPanel) {
+              selectedNameEl.textContent = stateName;
+              selectedAreaEl.textContent = v.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' ha';
               selectedRankEl.textContent = rank;
               infoPanel.style.display = 'block';
             }
           },
-          mouseout: e => { e.target.setStyle({ weight: 1 }); if (infoPanel) infoPanel.style.display = 'none'; },
-          click: e => map.fitBounds(e.target.getBounds(), { padding: [50,50], animate: true })
+          mouseout: e => {
+            e.target.setStyle({ weight: 0.6 });
+            if (infoPanel) infoPanel.style.display = 'none';
+          }
         });
       }
     }).addTo(map);
-    map.fitBounds(geoLayer.getBounds());
-  };
+
+  } else {
+    // --- ESTADOS dissolvidos (estado_nome) OU outras camadas (municípios, TIs, etc.) ---
+    const labelField = currentDataset === 'estados'
+      ? 'estado_nome'
+      : DATASETS[currentDataset].geoField;
+
+    const wanted = new Set(namesToShow.map(norm));
+
+    featuresToDraw = geojson.features.filter(f => {
+      const raw = currentDataset === 'estados'
+        ? (f.properties?.estado_nome || f.properties?.estado_sigla || '')
+        : (f.properties?.[labelField] ?? '');
+      return okGeom(f) && wanted.has(norm(raw));
+    });
+
+    geoLayer = L.geoJSON(featuresToDraw, {
+      style: f => {
+        const displayName = currentDataset === 'estados'
+          ? (f.properties?.estado_nome || '')
+          : (f.properties?.[labelField] ?? '');
+        const v = aggData[displayName] || 0;
+        return { color: '#555', weight: 1, fillColor: colorScale(v), fillOpacity: 0.7 };
+      },
+      onEachFeature: (f, layer) => {
+        const displayName = currentDataset === 'estados'
+          ? (f.properties?.estado_nome || '')
+          : (f.properties?.[labelField] ?? '');
+        const v = aggData[displayName] || 0;
+        const rank = namesToShow.findIndex(n => norm(n) === norm(displayName)) + 1;
+
+        layer.bindPopup(`<b>${rank}º - ${displayName}</b><br>Área: ${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`);
+        layer.on({
+          mouseover: e => {
+            e.target.setStyle({ weight: 3 });
+            if (infoPanel) {
+              selectedNameEl.textContent = displayName;
+              selectedAreaEl.textContent = v.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' ha';
+              selectedRankEl.textContent = rank;
+              infoPanel.style.display = 'block';
+            }
+          },
+          mouseout: e => { e.target.setStyle({ weight: 1 }); if (infoPanel) infoPanel.style.display = 'none'; }
+        });
+      }
+    }).addTo(map);
+  }
+
+  // enquadra
+  const b = geoLayer.getBounds();
+  if (b && b.isValid && b.isValid()) map.fitBounds(b, { padding: [30, 30] });
+};
+
+
 
   function getActiveSelectionForCurrentDataset(){
     switch (currentDataset){
@@ -1549,7 +1918,7 @@ const rankingTitleEl = document.querySelector(
   '.card .chart-title i.fa-chart-bar'
 )?.parentNode;
 if (rankingTitleEl) {
-  rankingTitleEl.innerHTML = `<i class="fas fa-chart-bar me-2"></i>Ranking de ${datasetLabel}`;
+  rankingTitleEl.innerHTML = `<i class="fas fa-chart-bar me-2"></i>Ranking de ${datasetLabel} mais explorados`;
 }
 
 const mapTitleEl = document.querySelector(
