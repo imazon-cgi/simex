@@ -26,10 +26,7 @@ if (process.env.TRUST_PROXY) {
 }
 
 // ======== Content Security Policy (CSP) ========
-// Ajustes principais vs. original:
-// - add "https://d3js.org" em script-src (D3 no SIMEX)
-// - add "*.basemaps.cartocdn.com" em connect-src (tiles CARTO no Leaflet precisam de connect e img)
-// - mantida a S3 do Imazon em img-src
+// CORREÇÃO: Adicionado corretamente os domínios do CartoCDN
 const cspDirectives = {
   "default-src": ["'self'"],
 
@@ -41,7 +38,8 @@ const cspDirectives = {
     "https://cdn.jsdelivr.net",
     "https://unpkg.com",
     "https://cdnjs.cloudflare.com",
-    "https://cdn.datatables.net"
+    "https://cdn.datatables.net",
+    "https://d3js.org" // Adicionado para D3
   ],
 
   "style-src": [
@@ -66,7 +64,7 @@ const cspDirectives = {
     "data:",
     "blob:",
     "https://*.tile.openstreetmap.org",
-    "https://*.basemaps.cartocdn.com",
+    "https://*.basemaps.cartocdn.com", // CORREÇÃO: Adicionado corretamente
     "https://unpkg.com",
     "https://cdn.jsdelivr.net",
     "https://cdnjs.cloudflare.com",
@@ -77,6 +75,7 @@ const cspDirectives = {
   "connect-src": [
     "'self'",
     "https://*.tile.openstreetmap.org",
+    "https://*.basemaps.cartocdn.com", // CORREÇÃO: Adicionado para tiles CARTO
     "https://cdn.datatables.net",
     "https://cdnjs.cloudflare.com",
     "https://cdn.jsdelivr.net",
