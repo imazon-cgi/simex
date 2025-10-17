@@ -63,27 +63,27 @@ const cspDirectives = {
   ],
 
   "img-src": [
-    "'self'",
-    "data:",
-    "blob:",
-    "https://*.tile.openstreetmap.org",
-    "https://*.basemaps.cartocdn.com",
-    "https://unpkg.com",
-    "https://cdn.jsdelivr.net",
-    "https://cdnjs.cloudflare.com",
-    "https://cdn.datatables.net",
-    "https://imazongeo3-web.s3.sa-east-1.amazonaws.com"
-  ],
+  "'self'",
+  "data:",
+  "blob:",
+  "https://*.tile.openstreetmap.org",
+  "https://*.basemaps.cartocdn.com",   // necessário para tiles CARTO
+  "https://unpkg.com",
+  "https://cdn.jsdelivr.net",
+  "https://cdnjs.cloudflare.com",
+  "https://cdn.datatables.net",
+  "https://imazongeo3-web.s3.sa-east-1.amazonaws.com"
+],
+"connect-src": [
+  "'self'",
+  "https://*.tile.openstreetmap.org",
+  "https://*.basemaps.cartocdn.com",   // alguns navegadores consultam aqui também para tiles
+  "https://cdn.datatables.net",
+  "https://cdnjs.cloudflare.com",
+  "https://cdn.jsdelivr.net",
+  "https://unpkg.com"
+],
 
-  "connect-src": [
-    "'self'",
-    "https://*.tile.openstreetmap.org",
-    "https://*.basemaps.cartocdn.com",
-    "https://cdn.datatables.net",
-    "https://cdnjs.cloudflare.com",
-    "https://cdn.jsdelivr.net",
-    "https://unpkg.com"
-  ],
 
   "worker-src": ["'self'", "blob:"],
   "object-src": ["'none'"],
