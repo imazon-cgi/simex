@@ -18,9 +18,6 @@ const DATASET_DIR = path.join(ROOT_DIR, 'dataset');
 const IMG_DIR = path.join(ROOT_DIR, 'img');
 
 // ---- Segurança (helmet + CSP) ----
-// Nota: incluímos 'unsafe-inline' (estilos inline do Bootstrap) e 'unsafe-eval'
-// (D3/Chart.js podem usar new Function). Se quiser endurecer, remova 'unsafe-eval'
-// e substitua libs por builds compatíveis com CSP estrita.
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -28,7 +25,7 @@ app.use(
       directives: {
         "default-src": ["'self'"],
 
-        // Carregamos scripts destes CDNs
+        // Scripts (Bootstrap bundle, Leaflet, Chart.js, D3, etc.)
         "script-src": [
           "'self'",
           "'unsafe-inline'",
@@ -57,15 +54,18 @@ app.use(
           "https://cdnjs.cloudflare.com"
         ],
 
-        // Imagens (inclui tiles OSM, data: e blob:)
+        // Imagens (tiles OSM + CARTO, data:, blob:, e opcionalmente seu S3)
         "img-src": [
           "'self'",
           "data:",
           "blob:",
-          "https://*.tile.openstreetmap.org"
+          "https://*.tile.openstreetmap.org",
+          "https://*.basemaps.cartocdn.com",
+          // Se usar imagens/GeoJSON via S3, libere explicitamente o bucket:
+          // "https://imazongeo3-web.s3.sa-east-1.amazonaws.com"
         ],
 
-        // Fetch/XHR
+        // Fetch/XHR (inclui unpkg para baixar sourcemap do Leaflet)
         "connect-src": [
           "'self'",
           "https://*.tile.openstreetmap.org",
@@ -75,10 +75,11 @@ app.use(
           "https://d3js.org"
         ],
 
+        // Para libs que usam Web Workers / canvas
+        "worker-src": ["'self'", "blob:"],
+
         "object-src": ["'none'"],
-        "frame-ancestors": ["'self'"],
-        // Opcionais para evitar bloqueios de recursos de terceiros
-        // quando renderizando canvas/baixando imagens
+        "frame-ancestors": ["'self'"]
       }
     },
     crossOriginEmbedderPolicy: false,
@@ -99,10 +100,12 @@ function setStaticHeaders(res, filePath) {
     res.type('application/geo+json; charset=utf-8');
   } else if (fp.endsWith('.csv')) {
     res.type('text/csv; charset=utf-8');
+  } else if (fp.endsWith('.json')) {
+    res.type('application/json; charset=utf-8');
   }
 
   // Cache leve para dados, mais agressivo para assets estáticos
-  if (fp.includes('/dataset/') || fp.endsWith('.csv') || fp.endsWith('.geojson')) {
+  if (fp.includes('/dataset/') || fp.endsWith('.csv') || fp.endsWith('.geojson') || fp.endsWith('.json')) {
     res.setHeader('Cache-Control', 'public, max-age=600, stale-while-revalidate=120'); // 10 min
   } else if (/\.(js|css|png|jpg|jpeg|webp|svg|ico|woff2?|ttf)$/.test(fp)) {
     res.setHeader('Cache-Control', 'public, max-age=604800, immutable'); // 7 dias

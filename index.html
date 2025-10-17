@@ -541,27 +541,33 @@
     }
 
     async function loadAmazoniaBase(){
-      try{
-        const gj = await fetch(AMAZONIA_BASE_URL).then(r=>r.json());
-        if (baseAmazonLayer) { map.removeLayer(baseAmazonLayer); baseAmazonLayer=null; }
-        baseAmazonLayer = L.geoJSON(gj, {
-          pane:'base-legal',
-          interactive:false,
-          style: {
-            color:'#2e7d32',      /* contorno */
-            weight:1.2,
-            fillColor:'#e8f5e9',  /* preenchimento */
-            fillOpacity:0.55
-          }
-        }).addTo(map);
-        baseBounds = baseAmazonLayer.getBounds();
-        if (baseBounds && baseBounds.isValid()) {
-          map.fitBounds(baseBounds, { padding:[20,20] });
-        }
-      }catch(e){
-        console.error('Falha ao carregar a Amazônia Legal:', e);
+  try{
+    const gj = await fetch(AMAZONIA_BASE_URL).then(r=>r.json());
+    if (baseAmazonLayer) { map.removeLayer(baseAmazonLayer); baseAmazonLayer=null; }
+
+    baseAmazonLayer = L.geoJSON(gj, {
+      pane: 'base-legal',
+      interactive: false,
+      style: {
+        // Somente borda, neutra
+        color: '#6B7280',   // cinza neutro (pode usar #808080)
+        weight: 2,          // espessura do contorno
+        opacity: 0.95,      // opacidade do contorno
+        fill: false,        // <<< sem preenchimento
+        fillOpacity: 0      // redundante com fill:false, mas reforça a intenção
+        // opcional: dashArray: '4,2' para contorno tracejado
       }
+    }).addTo(map);
+
+    baseBounds = baseAmazonLayer.getBounds();
+    if (baseBounds && baseBounds.isValid()) {
+      map.fitBounds(baseBounds, { padding:[20,20] });
     }
+  }catch(e){
+    console.error('Falha ao carregar a Amazônia Legal:', e);
+  }
+}
+
 
     mapInit();
 
