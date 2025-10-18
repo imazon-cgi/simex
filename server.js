@@ -18,7 +18,7 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 // Diretórios (Linux é case-sensitive)
 const ROOT_DIR = __dirname;
 const DATASET_DIR = process.env.DATASET_DIR || path.join(ROOT_DIR, 'dataset');
-const SAD_DIR = path.join(DATASET_DIR, 'sad');
+const SAD_DIR = path.join(DATASET_DIR, 'simex');
 
 // Se estiver atrás de proxy (Nginx/Apache/Cloudflare), habilite para obter IP correto
 if (process.env.TRUST_PROXY) {
