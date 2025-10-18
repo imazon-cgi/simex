@@ -26,7 +26,7 @@ if (process.env.TRUST_PROXY) {
 }
 
 // ======== Content Security Policy (CSP) ========
-// CORREÇÃO: Adicionado corretamente os domínios do CartoCDN
+// CORREÇÃO COMPLETA: Adicionado todos os domínios necessários
 const cspDirectives = {
   "default-src": ["'self'"],
 
@@ -39,7 +39,7 @@ const cspDirectives = {
     "https://unpkg.com",
     "https://cdnjs.cloudflare.com",
     "https://cdn.datatables.net",
-    "https://d3js.org" // Adicionado para D3
+    "https://d3js.org"
   ],
 
   "style-src": [
@@ -64,7 +64,10 @@ const cspDirectives = {
     "data:",
     "blob:",
     "https://*.tile.openstreetmap.org",
-    "https://*.basemaps.cartocdn.com", // CORREÇÃO: Adicionado corretamente
+    "https://*.basemaps.cartocdn.com", // CORREÇÃO: Domínio correto para imagens
+    "https://a.basemaps.cartocdn.com", // CORREÇÃO: Subdomínios específicos
+    "https://b.basemaps.cartocdn.com",
+    "https://c.basemaps.cartocdn.com",
     "https://unpkg.com",
     "https://cdn.jsdelivr.net",
     "https://cdnjs.cloudflare.com",
@@ -75,7 +78,10 @@ const cspDirectives = {
   "connect-src": [
     "'self'",
     "https://*.tile.openstreetmap.org",
-    "https://*.basemaps.cartocdn.com", // CORREÇÃO: Adicionado para tiles CARTO
+    "https://*.basemaps.cartocdn.com", // CORREÇÃO: Para requisições de conexão
+    "https://a.basemaps.cartocdn.com",
+    "https://b.basemaps.cartocdn.com", 
+    "https://c.basemaps.cartocdn.com",
     "https://cdn.datatables.net",
     "https://cdnjs.cloudflare.com",
     "https://cdn.jsdelivr.net",
