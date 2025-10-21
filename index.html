@@ -329,10 +329,13 @@
                     </button>
 
                     <!-- Rótulo de página DENTRO do grupo -->
-                    <button class="btn btn-outline-secondary" id="rank-page-label-btn" disabled
-                            style="pointer-events:none;opacity:.95;">
-                      Página 1/1
-                    </button>
+                    <button
+  class="btn btn-outline-secondary border-0 bg-transparent"
+  id="rank-page-label-btn"
+  disabled
+  style="pointer-events:none;opacity:.95;">
+  Página 1/1
+</button>
 
                     <button class="btn btn-outline-secondary" id="rank-next"   title="Próxima">
                       <i class="fa-solid fa-angle-right"></i>
@@ -1325,9 +1328,9 @@
 
       const datasetLabel = DATASET_LABELS[currentDataset] || "Itens";
       const gender = DATASET_GENDER[currentDataset] || "M";
-      const exploradosText = gender === "F" ? "exploradas" : "explorados";
+      const exploradosText = gender === "F" ? "Exploradas" : "Explorados";
       const rankingTitleEl = document.querySelector('.card .chart-title i.fa-chart-bar')?.parentNode;
-      if (rankingTitleEl) rankingTitleEl.innerHTML = `<i class=\"fas fa-chart-bar me-2\"></i>Ranking de ${datasetLabel} mais ${exploradosText}`;
+      if (rankingTitleEl) rankingTitleEl.innerHTML = `<i class=\"fas fa-chart-bar me-2\"></i>Ranking de ${datasetLabel} Mais ${exploradosText}`;
       const mapTitleEl = document.querySelector('.card .chart-title i.fa-map')?.parentNode;
       if (mapTitleEl) mapTitleEl.innerHTML = `<i class=\"fas fa-map me-2\"></i>Mapa de ${datasetLabel}`;
 
