@@ -458,11 +458,182 @@
     </div>
   </div>
 
-  <!-- Modais (… iguais ao seu arquivo original, mantidos) -->
-  <!-- Terras, Municípios, Estados, Imóveis, Assentamentos, Terras Sem Destinação, UCs -->
-  <!-- (Conteúdo dos modais omitido aqui por brevidade se já estiver no seu arquivo; 
-       caso precise novamente me avise que reenvio completo dos modais.) -->
+<!-- Adicione este código antes do fechamento do container-fluid -->
+<!-- Modais de Seleção -->
+<!-- Modal Terras Indígenas -->
+<div class="modal fade" id="terrasModal" tabindex="-1" aria-labelledby="terrasModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="terrasModalLabel">Selecionar Terras Indígenas</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input type="text" id="terras-search" class="form-control" placeholder="Buscar terra indígena...">
+        </div>
+        <div class="selection-info">
+          <span id="selected-terras-count">0</span> selecionadas
+        </div>
+        <div id="terras-list" class="mt-2" style="max-height: 400px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="apply-terras-selection">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
 
+<!-- Modal Municípios -->
+<div class="modal fade" id="municipiosModal" tabindex="-1" aria-labelledby="municipiosModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="municipiosModalLabel">Selecionar Municípios</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input type="text" id="municipios-search" class="form-control" placeholder="Buscar município...">
+        </div>
+        <div class="selection-info">
+          <span id="selected-municipios-count">0</span> selecionados
+        </div>
+        <div id="municipios-list" class="mt-2" style="max-height: 400px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="apply-municipios-selection">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Estados -->
+<div class="modal fade" id="estadosModal" tabindex="-1" aria-labelledby="estadosModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="estadosModalLabel">Selecionar Estados</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input type="text" id="estados-search" class="form-control" placeholder="Buscar estado...">
+        </div>
+        <div class="selection-info">
+          <span id="selected-estados-count">0</span> selecionados
+        </div>
+        <div id="estados-list" class="mt-2" style="max-height: 400px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="apply-estados-selection">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Imóveis Rurais -->
+<div class="modal fade" id="imoveisModal" tabindex="-1" aria-labelledby="imoveisModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="imoveisModalLabel">Selecionar Imóveis Rurais</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input type="text" id="imoveis-search" class="form-control" placeholder="Buscar imóvel...">
+        </div>
+        <div class="selection-info">
+          <span id="selected-imoveis-count">0</span> selecionados
+        </div>
+        <div id="imoveis-list" class="mt-2" style="max-height: 400px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="apply-imoveis-selection">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Assentamentos -->
+<div class="modal fade" id="assentamentosModal" tabindex="-1" aria-labelledby="assentamentosModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="assentamentosModalLabel">Selecionar Assentamentos</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input type="text" id="assentamentos-search" class="form-control" placeholder="Buscar assentamento...">
+        </div>
+        <div class="selection-info">
+          <span id="selected-assentamentos-count">0</span> selecionados
+        </div>
+        <div id="assentamentos-list" class="mt-2" style="max-height: 400px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="apply-assentamentos-selection">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Terras Sem Destinação -->
+<div class="modal fade" id="terrasSemDestinacaoModal" tabindex="-1" aria-labelledby="terrasSemDestinacaoModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="terrasSemDestinacaoModalLabel">Selecionar Terras Sem Destinação</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input type="text" id="terras-sem-destinacao-search" class="form-control" placeholder="Buscar terra sem destinação...">
+        </div>
+        <div class="selection-info">
+          <span id="selected-terras-sem-destinacao-count">0</span> selecionadas
+        </div>
+        <div id="terras-sem-destinacao-list" class="mt-2" style="max-height: 400px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="apply-terras-sem-destinacao-selection">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Unidades de Conservação -->
+<div class="modal fade" id="ucModal" tabindex="-1" aria-labelledby="ucModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="ucModalLabel">Selecionar Unidades de Conservação</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input type="text" id="uc-search" class="form-control" placeholder="Buscar UC...">
+        </div>
+        <div class="selection-info">
+          <span id="selected-uc-count">0</span> selecionadas
+        </div>
+        <div id="uc-list" class="mt-2" style="max-height: 400px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="apply-uc-selection">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
   <!-- JS libs -->
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://d3js.org/d3-scale-chromatic.v3.min.js"></script>
@@ -1345,44 +1516,67 @@
     /* ===========================
        MODAIS / EVENTOS
     ============================ */
-    function populateList(listId, searchId, selectedList, countId){
-      const listEl = document.getElementById(listId);
-      const termEl = document.getElementById(searchId);
-      const term = (termEl ? termEl.value : '').toLowerCase();
-      const year = +yearFilter.value;
+    // Adicione esta função se não existir, ou substitua pela versão corrigida:
+function populateList(listId, searchId, selectedList, countId){
+  const listEl = document.getElementById(listId);
+  const termEl = document.getElementById(searchId);
+  const term = (termEl ? termEl.value : '').toLowerCase();
+  const year = +yearFilter.value;
 
-      const names = [...new Set(csvData.filter(d => d.year===year && d.name).map(d => d.name))].sort();
-      listEl.innerHTML = '';
+  // Obter nomes disponíveis para o ano atual
+  const names = [...new Set(csvData
+    .filter(d => d.year === year && d.name)
+    .map(d => d.name))
+  ].sort();
 
-      const allSelected = names.length > 0 && names.every(n => selectedList.includes(n));
-      const allItem = document.createElement('div');
-      allItem.className = `settlement-item ${allSelected ? 'selected' : ''}`;
-      allItem.textContent = 'Todos';
-      allItem.onclick = () => {
-        if (allSelected) { selectedList.length = 0; }
-        else { selectedList.length = 0; for (const n of names) selectedList.push(n); }
+  listEl.innerHTML = '';
+
+  // Item "Todos"
+  const allSelected = names.length > 0 && names.every(n => selectedList.includes(n));
+  const allItem = document.createElement('div');
+  allItem.className = `settlement-item ${allSelected ? 'selected' : ''}`;
+  allItem.textContent = 'Todos';
+  allItem.onclick = () => {
+    if (allSelected) {
+      selectedList.length = 0;
+    } else {
+      selectedList.length = 0;
+      names.forEach(n => selectedList.push(n));
+    }
+    populateList(listId, searchId, selectedList, countId);
+  };
+  listEl.appendChild(allItem);
+
+  // Itens filtrados
+  names
+    .filter(n => n.toLowerCase().includes(term))
+    .forEach(name => {
+      const isSelected = selectedList.includes(name);
+      const item = document.createElement('div');
+      item.className = `settlement-item ${isSelected ? 'selected' : ''}`;
+      item.textContent = name;
+      item.onclick = () => {
+        if (!isSelected && selectedList.length >= 10 && !allSelected) {
+          alert('Máximo 10 selecionados (exceto quando usar "Todos")');
+          return;
+        }
+        if (isSelected) {
+          const index = selectedList.indexOf(name);
+          selectedList.splice(index, 1);
+        } else {
+          selectedList.push(name);
+        }
         populateList(listId, searchId, selectedList, countId);
       };
-      listEl.appendChild(allItem);
+      listEl.appendChild(item);
+    });
 
-      names.filter(n => n.toLowerCase().includes(term)).forEach(name => {
-        const sel = selectedList.includes(name);
-        const item = document.createElement('div');
-        item.className = `settlement-item ${sel ? 'selected' : ''}`;
-        item.textContent = name;
-        item.onclick = () => {
-          if (!sel && selectedList.length >= 10) { alert('Máximo 10 selecionados (exceto quando usar "Todos")'); return; }
-          if (sel) selectedList.splice(selectedList.indexOf(name), 1);
-          else selectedList.push(name);
-          populateList(listId, searchId, selectedList, countId);
-        };
-        listEl.appendChild(item);
-      });
-
-      const countEl = document.getElementById(countId);
-      if (countEl) countEl.textContent = selectedList.length;
-    }
-
+  // Atualizar contador
+  const countEl = document.getElementById(countId);
+  if (countEl) {
+    countEl.textContent = selectedList.length;
+  }
+}
     function liberarScroll(){
       document.body.classList.remove('modal-open');
       document.body.style.removeProperty('overflow');
@@ -1390,40 +1584,53 @@
       document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
     }
 
-    function setUpModalListeners(){
-      const CONFIG = [
-        ['open-terras-modal','terrasModal','terras-list','terras-search','selected-terras-count',selectedTerras,'apply-terras-selection'],
-        ['open-municipios-modal','municipiosModal','municipios-list','municipios-search','selected-municipios-count',selectedMunicipios,'apply-municipios-selection'],
-        ['open-estados-modal','estadosModal','estados-list','estados-search','selected-estados-count',selectedEstados,'apply-estados-selection'],
-        ['open-imoveis-modal','imoveisModal','imoveis-list','imoveis-search','selected-imoveis-count',selectedImoveis,'apply-imoveis-selection'],
-        ['open-assentamentos-modal','assentamentosModal','assentamentos-list','assentamentos-search','selected-assentamentos-count',selectedAssentamentos,'apply-assentamentos-selection'],
-        ['open-uc-modal','ucModal','uc-list','uc-search','selected-uc-count',selectedUCs,'apply-uc-selection'],
-        ['open-terras-sem-destinacao-modal','terrasSemDestinacaoModal','terras-sem-destinacao-list','terras-sem-destinacao-search','selected-terras-sem-destinacao-count',selectedTerrasSemDestinacao,'apply-terras-sem-destinacao-selection'],
-      ];
+    // Substitua a função setUpModalListeners pela versão corrigida:
+function setUpModalListeners(){
+  const CONFIG = [
+    ['open-terras-modal','terrasModal','terras-list','terras-search','selected-terras-count',selectedTerras,'apply-terras-selection'],
+    ['open-municipios-modal','municipiosModal','municipios-list','municipios-search','selected-municipios-count',selectedMunicipios,'apply-municipios-selection'],
+    ['open-estados-modal','estadosModal','estados-list','estados-search','selected-estados-count',selectedEstados,'apply-estados-selection'],
+    ['open-imoveis-modal','imoveisModal','imoveis-list','imoveis-search','selected-imoveis-count',selectedImoveis,'apply-imoveis-selection'],
+    ['open-assentamentos-modal','assentamentosModal','assentamentos-list','assentamentos-search','selected-assentamentos-count',selectedAssentamentos,'apply-assentamentos-selection'],
+    ['open-uc-modal','ucModal','uc-list','uc-search','selected-uc-count',selectedUCs,'apply-uc-selection'],
+    ['open-terras-sem-destinacao-modal','terrasSemDestinacaoModal','terras-sem-destinacao-list','terras-sem-destinacao-search','selected-terras-sem-destinacao-count',selectedTerrasSemDestinacao,'apply-terras-sem-destinacao-selection'],
+  ];
 
-      CONFIG.forEach(([openId, modalId, listId, searchId, countId, store, applyId])=>{
-        const openBtn = document.getElementById(openId);
-        const modalEl = document.getElementById(modalId);
-        const applyBtn = document.getElementById(applyId);
-        if (!openBtn || !modalEl || !applyBtn) return;
-
-        openBtn.addEventListener('click', () => {
-          populateList(listId, searchId, store, countId);
-          new bootstrap.Modal(modalEl).show();
-        });
-        applyBtn.addEventListener('click', () => {
-          setActiveSelectionForCurrentDataset(store);
-          modalEl.addEventListener('hidden.bs.modal', () => { 
-            updateDashboard(); 
-            liberarScroll(); 
-          }, { once:true });
-          const inst = bootstrap.Modal.getInstance(modalEl);
-          if (inst) inst.hide();
-        });
-        const searchInput = document.getElementById(searchId);
-        if (searchInput) searchInput.addEventListener('input', () => populateList(listId, searchId, store, countId));
-      });
+  CONFIG.forEach(([openId, modalId, listId, searchId, countId, store, applyId])=>{
+    const openBtn = document.getElementById(openId);
+    const modalEl = document.getElementById(modalId);
+    const applyBtn = document.getElementById(applyId);
+    if (!openBtn || !modalEl || !applyBtn) {
+      console.warn(`Elemento não encontrado: ${openId}, ${modalId} ou ${applyId}`);
+      return;
     }
+
+    openBtn.addEventListener('click', () => {
+      populateList(listId, searchId, store, countId);
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    });
+    
+    applyBtn.addEventListener('click', () => {
+      // Atualiza a seleção atual com os dados do modal
+      setActiveSelectionForCurrentDataset([...store]);
+      
+      // Fecha o modal
+      const modalInstance = bootstrap.Modal.getInstance(modalEl);
+      if (modalInstance) {
+        modalInstance.hide();
+      }
+      
+      // Atualiza o dashboard
+      updateDashboard();
+    });
+    
+    const searchInput = document.getElementById(searchId);
+    if (searchInput) {
+      searchInput.addEventListener('input', () => populateList(listId, searchId, store, countId));
+    }
+  });
+}
 
     /* ===========================
        BOOT
