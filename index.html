@@ -46,12 +46,11 @@
     .card:hover{ transform:translateY(-5px); }
     .card-header{
       background:var(--card-color)!important;color:var(--primary-dark)!important;font-weight:700!important;
-      border-bottom:2px solid var(--accent-color)!important;padding:1.25rem;font-size:1.1em;position:relative;
+      border-bottom:1px solid var(--accent-color)!important;padding:1.25rem;font-size:1.1em;position:relative;
     }
-    .card-header::after{ content:'';position:absolute;bottom:0;left:20px;width:50px;height:3px;background:var(--accent-color);border-radius:3px; }
-
+  
     .filter-section{ background:var(--card-color);padding:1.5rem;border-radius:var(--border-radius);box-shadow:var(--box-shadow);margin-bottom:2rem; }
-
+    
     /* Nova estrutura de filtros seguindo o padrão SAD */
     .filter-container { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; align-items: end; }
     .filter-item { display: flex; flex-direction: column; gap: 6px; }
@@ -91,7 +90,7 @@
     .modal-terras-indigenas .modal-header{ background:var(--primary-color);color:#fff; }
     .modal-terras-indigenas .modal-footer .btn{ border-radius:8px;font-weight:600;padding:8px 20px; }
 
-    .fase-filter-group{ display:none; }   /* já existia */
+    .fase-filter-group{ display:none; }
     .jurisdicao-filter-group{ display:none; }
     .uso-filter-group{ display:none; }
 
@@ -314,7 +313,7 @@
               <div class="d-flex flex-column">
                 <div class="chart-title"><i class="fas fa-chart-bar me-2"></i>Ranking</div>
 
-                <!-- Controles de paginação no padrão do SAD -->
+                <!-- Controles de paginação -->
                 <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
                   <div class="btn-group btn-group-sm" role="group" aria-label="Paginação do ranking">
                     <button class="btn btn-outline-secondary" id="rank-first"  title="Primeira">
@@ -325,14 +324,13 @@
                       <i class="fa-solid fa-angle-left"></i>
                     </button>
 
-                    <!-- Rótulo de página DENTRO do grupo -->
                     <button
-  class="btn btn-outline-secondary border-0 bg-transparent"
-  id="rank-page-label-btn"
-  disabled
-  style="pointer-events:none;opacity:.95;">
-  Página 1/1
-</button>
+                      class="btn btn-outline-secondary border-0 bg-transparent"
+                      id="rank-page-label-btn"
+                      disabled
+                      style="pointer-events:none;opacity:.95;">
+                      Página 1/1
+                    </button>
 
                     <button class="btn btn-outline-secondary" id="rank-next"   title="Próxima">
                       <i class="fa-solid fa-angle-right"></i>
@@ -342,10 +340,8 @@
                     </button>
                   </div>
 
-                  <!-- Faixa "mostrando x–y de z" + seletor de tamanho -->
                   <span class="small text-muted" id="rank-range-label">mostrando 0–0 de 0</span>
-
-                  </div>
+                </div>
               </div>
 
               <div class="d-flex align-items-center">
@@ -429,7 +425,7 @@
     <!-- Downloads — SIMEX (Anual) -->
     <div class="card mt-3 downloads-card collapsed" id="downloads-simex-card" aria-live="polite">
       <div class="card-header">
-        <div class="downloads-title">Downloads</div>
+        <div class="downloads-title">Downloads (AWS S3)</div>
         <div class="typebar" id="simex-typebar" role="tablist" aria-label="Tipos de arquivo do SIMEX">
           <button class="typebtn active" data-type="geojson" role="tab" aria-selected="true" title="GeoJSON anual">
             <i class="fa-regular fa-map"></i> GeoJSON
@@ -437,7 +433,8 @@
           <button class="typebtn" data-type="csv" role="tab" aria-selected="false" title="CSV anual">
             <i class="fa-regular fa-file-lines"></i> CSV
           </button>
-          <button class="typebtn" data-type="shp" role="tab" aria-selected="false" title="Shapefile (ZIP)" disabled>
+          <!-- Shapefile habilitado -->
+          <button class="typebtn" data-type="shp" role="tab" aria-selected="false" title="Shapefile (ZIP)">
             <i class="fa-regular fa-file-zipper"></i> Shapefile
           </button>
         </div>
@@ -455,7 +452,7 @@
     </div>
   </div>
 
-<!-- Modais (… inalterados) -->
+<!-- Modais (iguais ao seu snippet) -->
 <!-- Modal Terras Indígenas -->
 <div class="modal fade" id="terrasModal" tabindex="-1" aria-labelledby="terrasModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
@@ -481,8 +478,6 @@
   </div>
 </div>
 
-<!-- (Demais modais iguais ao seu snippet: Municípios, Estados, Imóveis, Assentamentos, Terras Sem Destinação, UCs) -->
-<!-- … -->
 <!-- Modal Municípios -->
 <div class="modal fade" id="municipiosModal" tabindex="-1" aria-labelledby="municipiosModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg">
@@ -708,51 +703,49 @@
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_assentamentos.csv',
         geoField:'name',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
-          area:(+d.area_ha||0)/100,name:d.name })
+          area:(+d.area_ha||0),name:d.name })
       },
       imoveis:{
         geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_imoveisrurais.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.csv',
         geoField:'name',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
-          area:(+d.area_ha||0)/100,name:d.name })
+          area:(+d.area_ha||0),name:d.name })
       },
       municipios:{
         geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_mun.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_municipios.csv',
         geoField:'nome',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
-          area:(+d.area_ha||0)/100,name:d.nome })
+          area:(+d.area_ha||0),name:d.nome })
       },
       estados:{
         geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_mun.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_municipios.csv',
         geoField:'nome',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,state_name:UF_NAMES[d.sigla_uf]||d.sigla_uf,
-          category:d.categoria||'',area:(+d.area_ha||0)/100,name:UF_NAMES[d.sigla_uf]||d.sigla_uf })
+          category:d.categoria||'',area:(+d.area_ha||0),name:UF_NAMES[d.sigla_uf]||d.sigla_uf })
       },
       terras: {
-  geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TI.geojson',
-  csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TI.csv',
-  geoField:'terrai_nom',
-  parse: d => ({
-    year: +d.ano || null,
-    month: null,
-    state: d.sigla_uf,
-    category: d.categoria || '',
-    area: (+d.area_ha || 0) / 100,
-    name: d.terrai_nom,
-    // 👇 pega fase_ti do CSV e mantém fallback para outros nomes, se existirem
-    fase: (d['fase_ti'] ?? d['Fase_ti'] ?? d['FASE_TI'] ?? d.fase ?? d.Fase ?? '').toString().trim()
-  })
-}
-,
+        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TI.geojson',
+        csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TI.csv',
+        geoField:'terrai_nom',
+        parse: d => ({
+          year: +d.ano || null,
+          month: null,
+          state: d.sigla_uf,
+          category: d.categoria || '',
+          area: (+d.area_ha || 0),
+          name: d.terrai_nom,
+          fase: (d['fase_ti'] ?? d['Fase_ti'] ?? d['FASE_TI'] ?? d.fase ?? d.Fase ?? '').toString().trim()
+        })
+      },
       terras_sem_destinacao:{
         geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TerrasNDest.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TerrasNDest.csv',
         geoField:'name',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
-          area:(+d.area_ha||0)/100,name:d.name })
+          area:(+d.area_ha||0),name:d.name })
       },
       uc:{
         geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_UC.geojson',
@@ -760,7 +753,7 @@
         geoField:'nome_1',
         parse:d=>({ 
           year:+d.ano||null, month:null, state:d.sigla_uf, category:d.categoria||'',
-          area:(+d.area_ha||0)/100, name:d.nome_1, jurisdicao:d.jurisdicao, uso:d.uso
+          area:(+d.area_ha||0), name:d.nome_1, jurisdicao:d.jurisdicao, uso:d.uso
         })
       }
     };
@@ -771,7 +764,7 @@
     const exploracaoFilter = document.getElementById('exploracaoFilter');
     const jurisdicaoFilter = document.getElementById('jurisdicaoFilter');
     const usoFilter = document.getElementById('usoFilter');
-    const faseFilter = document.getElementById('faseFilter'); // NOVO
+    const faseFilter = document.getElementById('faseFilter');
     const totalAreaEl = document.getElementById('total-area');
     const affectedCountEl = document.getElementById('affected-count');
     const selectedNameEl = document.getElementById('selected-name');
@@ -798,10 +791,13 @@
     }
 
     /* ===========================
-       MAPA: INICIALIZAÇÃO
+       MAPA: INICIALIZAÇÃO (com proteção)
     ============================ */
     function mapInit(){
-      map = L.map('map', { zoomControl:true });
+      const mapEl = document.getElementById('map');
+      if (!mapEl) { console.error('Map container not found.'); return; }
+
+      map = L.map(mapEl, { zoomControl:true });
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
         crossOrigin: true,
@@ -838,8 +834,6 @@
       }
     }
 
-    mapInit();
-
     /* ===========================
        DADOS E GRÁFICOS
     ============================ */
@@ -854,8 +848,7 @@
         opt.value = y; opt.textContent = y;
         yearFilter.appendChild(opt);
       });
-      const maxYear = years.length ? Math.max(...years) : new Date().getFullYear();
-      yearFilter.value = String(maxYear);
+      yearFilter.value = 'all';
     };
 
     const loadData = async () => {
@@ -978,7 +971,7 @@
 
     function triggerDownload(href, filename){
       const a = document.createElement('a');
-      a.href = href; a.download = filename; a.rel = 'noopener';
+      a.href = href; a.download = filename; a.rel = 'noopener'; a.target = '_blank';
       document.body.appendChild(a); a.click(); a.remove();
     }
     function downloadCSV(content, fileName){
@@ -1021,7 +1014,7 @@
       downloadCSV(rows.join('\n'), `serie-historica-anual-${currentDataset}.csv`);
     }
 
-    // utilidades para downloads anuais
+    // utilidades para downloads anuais (export local — mantidos como fallback)
     function slugifySIMEX(s){
       return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
         .replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
@@ -1110,9 +1103,44 @@
     }
 
     /* ===========================
+       DOWNLOADS DO S3 (SIMEX anual)
+    ============================ */
+    const S3_DOWNLOAD = {
+      base: 'https://imazongeo3-web.s3.sa-east-1.amazonaws.com/simex',
+      folderByType: { geojson: 'geojson', csv: 'csv', shp: 'shapefile' },
+      extByType:    { geojson: 'geojson', csv: 'csv', shp: 'zip' },
+      filename(year, type) {
+        return `simex_unificado_${year}.${this.extByType[type]}`;
+      },
+      url(year, type) {
+        const t = (type || 'geojson').toLowerCase();
+        const folder = this.folderByType[t];
+        if (!folder) throw new Error(`Tipo inválido: ${type}`);
+        return `${this.base}/${folder}/${this.filename(year, t)}`;
+      }
+    };
+
+    function downloadFromS3(year, type) {
+      const url = S3_DOWNLOAD.url(year, type);
+      // Tentamos HEAD para feedback amigável; se CORS bloquear, abrimos direto.
+      fetch(url, { method: 'HEAD' })
+        .then(r => {
+          if (r.ok) {
+            triggerDownload(url, S3_DOWNLOAD.filename(year, type));
+          } else {
+            alert(`Arquivo não encontrado no S3 (${type.toUpperCase()} ${year}).\n${url}`);
+          }
+        })
+        .catch(() => {
+          triggerDownload(url, S3_DOWNLOAD.filename(year, type));
+        });
+    }
+
+    /* ===========================
        MAPA: OVERLAY DO RANKING
     ============================ */
     function updateMap(aggData, namesToShow){
+      if (!map) return;
       if (geoLayer) { map.removeLayer(geoLayer); geoLayer = null; }
       if (!geojson || !Array.isArray(geojson.features)) {
         if (baseBounds && baseBounds.isValid()) map.fitBounds(baseBounds, { padding:[20,20] });
@@ -1308,25 +1336,34 @@
       return out;
     }
 
+    /* ===========================
+       DOWNLOADS (UI) — S3 por ano
+    ============================ */
     function buildDownloadsListSIMEX(){
       const list = document.getElementById('simex-downloads-list');
       const typebar = document.getElementById('simex-typebar');
       const toggleBtn = document.getElementById('downloads-simex-toggle');
       if (!list || !typebar || !toggleBtn) return;
 
+      // Toggle colapsar/expandir
       toggleBtn.onclick = () => {
         const card = document.getElementById('downloads-simex-card');
         const collapsed = card.classList.toggle('collapsed');
         toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
       };
 
+      // Bind da barra de tipos (GeoJSON / CSV / Shapefile)
       if (!typebar.dataset.bound){
+        // Garante que o botão Shapefile esteja habilitado mesmo se o HTML tiver "disabled"
+        const shpBtnForce = typebar.querySelector('[data-type="shp"]');
+        if (shpBtnForce) shpBtnForce.removeAttribute('disabled');
+
         typebar.querySelectorAll('.typebtn').forEach(btn=>{
           btn.addEventListener('click', ()=>{
             if (btn.hasAttribute('disabled')) return;
             typebar.querySelectorAll('.typebtn').forEach(b=>b.classList.remove('active'));
             btn.classList.add('active');
-            typebar.dataset.currentType = btn.dataset.type;
+            typebar.dataset.currentType = btn.dataset.type; // 'geojson' | 'csv' | 'shp'
             renderYearChips();
           });
         });
@@ -1336,6 +1373,8 @@
 
       function renderYearChips(){
         const currentType = typebar.dataset.currentType || 'geojson';
+
+        // Anos disponíveis a partir do csvData
         const anos = [...new Set(csvData.map(d=>d.year))].filter(Boolean).sort((a,b)=>b-a);
         list.innerHTML = '';
 
@@ -1357,9 +1396,10 @@
         formatCard.className = 'format-card';
         const title = document.createElement('div');
         title.className = 'format-title';
-        title.textContent = (currentType==='csv' ? 'CSV' :
-                             currentType==='geojson' ? 'GeoJSON' :
-                             'Shapefile (indisponível no momento)');
+        title.textContent =
+          currentType==='csv'      ? 'CSV (S3 — anual)' :
+          currentType==='geojson'  ? 'GeoJSON (S3 — anual)' :
+                                     'Shapefile (ZIP) — S3 (anual)';
         formatCard.appendChild(title);
 
         const ul = document.createElement('ul');
@@ -1371,12 +1411,10 @@
           a.href = 'javascript:void(0)';
           a.className = 'chiplink';
           a.textContent = String(ano);
-          a.title = `Baixar ${currentType.toUpperCase()} de ${ano}`;
+          a.title = `Baixar ${currentType.toUpperCase()} de ${ano} do S3`;
 
           a.addEventListener('click', ()=>{
-            if (currentType==='csv')      exportCSVAnualSIMEX(ano);
-            else if (currentType==='geojson') exportGeoJSONAnualSIMEX(ano);
-            else alert('Shapefile não está habilitado nesta versão.');
+            downloadFromS3(ano, currentType); // baixa do S3 conforme o tipo selecionado
           });
 
           li.appendChild(a);
@@ -1711,7 +1749,7 @@
       if (year === 'all') updateYearlyChartForAllYears(); else updateYearlyChart();
 
       setRankPage(0);
-      buildDownloadsListSIMEX();
+      buildDownloadsListSIMEX(); // <== chips de anos apontando para S3
       hideLoader();
     }
 
@@ -1830,8 +1868,13 @@
     ============================ */
     async function init(){
       showLoader("Iniciando dashboard...");
+
+      // Inicializa o mapa com segurança
+      mapInit();
+
+      // Carrega dados, ativa filtros e UI
       await loadData();
-      toggleExtraFilters();     // (substitui toggleUCFilters)
+      toggleExtraFilters();
       updateDashboard();
       setUpModalListeners();
 
@@ -1862,7 +1905,7 @@
       });
       jurisdicaoFilter.addEventListener('change', ()=>{ showLoader("Filtrando..."); setTimeout(updateDashboard,100); });
       usoFilter.addEventListener('change', ()=>{ showLoader("Filtrando..."); setTimeout(updateDashboard,100); });
-      faseFilter?.addEventListener('change', ()=>{ showLoader("Filtrando..."); setTimeout(updateDashboard,100); }); // NOVO
+      faseFilter?.addEventListener('change', ()=>{ showLoader("Filtrando..."); setTimeout(updateDashboard,100); });
 
       document.getElementById('apply-filters').addEventListener('click', ()=>{ showLoader("Aplicando filtros..."); setTimeout(updateDashboard,100); });
       yearFilter.addEventListener('change', ()=>{ showLoader('Atualizando...'); setTimeout(updateDashboard,50); });
@@ -1875,9 +1918,7 @@
         estadoFilter.value='all'; categoriaFilter.value='all';
         jurisdicaoFilter.value='all'; usoFilter.value='all'; if (faseFilter) faseFilter.value = 'all';
         toggleExtraFilters();
-        const yearsInSelect = Array.from(yearFilter.options).map(o=>+o.value).filter(Boolean);
-        const maxYear = yearsInSelect.length ? Math.max(...yearsInSelect) : new Date().getFullYear();
-        yearFilter.value = String(maxYear);
+        yearFilter.value = 'all';
         document.querySelectorAll('.modal.show').forEach(m=>{ const inst=bootstrap.Modal.getInstance(m); if (inst) inst.hide(); });
         showLoader("Limpando seleções..."); setTimeout(updateDashboard,100);
       });
@@ -1919,7 +1960,8 @@
       downloadCSV(rows.join('\n'), `ranking-completo-${currentDataset}-${yearFilter.value}.csv`);
     }
 
-    init();
+    // Inicializa após o DOM estar pronto (evita "Map container not found")
+    window.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
 </html>
