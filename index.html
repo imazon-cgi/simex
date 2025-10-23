@@ -232,13 +232,13 @@
         </div>
 
         <div class="filter-item span-2 uso-filter-group" id="usoFilterGroup" style="display:none;">
-          <label class="form-label fw-bold" for="usoFilter">Tipos de Uso</label>
-          <select id="usoFilter" class="form-select">
-            <option value="all">Todos</option>
-            <option value="Uso Sustentável">Uso Sustentável</option>
-            <option value="Proteção Integral">Proteção Integral</option>
-          </select>
-        </div>
+  <label class="form-label fw-bold" for="usoFilter">Tipos de Uso</label>
+  <select id="usoFilter" class="form-select">
+    <option value="all">Todos</option>
+    <option value="US">Uso Sustentável</option>
+    <option value="PI">Proteção Integral</option>
+  </select>
+</div>
 
         <!-- Fase (apenas para Terras Indígenas) -->
         <div class="filter-item span-2 fase-filter-group" id="faseFilterGroup" style="display:none;">
@@ -668,6 +668,22 @@
       if (loader) loader.style.display = 'none';
     }
 
+    // Adicione esta função após as constantes no início do script
+function mapUsoValue(uso) {
+  const map = {
+    'US': 'Uso Sustentável',
+    'PI': 'Proteção Integral'
+  };
+  return map[uso] || uso;
+}
+
+function mapJurisdicaoValue(jurisdicao) {
+  const map = {
+    'Federal': 'Federal',
+    'Estadual': 'Estadual'
+  };
+  return map[jurisdicao] || jurisdicao;
+}
     Chart.register(ChartDataLabels);
     Chart.defaults.font.family = "'Montserrat', sans-serif";
     Chart.defaults.font.size = 12;
@@ -748,14 +764,20 @@
           area:(+d.area_ha||0),name:d.name })
       },
       uc:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_UC.geojson',
-        csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_UC.csv',
-        geoField:'nome_1',
-        parse:d=>({ 
-          year:+d.ano||null, month:null, state:d.sigla_uf, category:d.categoria||'',
-          area:(+d.area_ha||0), name:d.nome_1, jurisdicao:d.jurisdicao, uso:d.uso
-        })
-      }
+  geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_UC.geojson',
+  csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_UC.csv',
+  geoField:'nome_1',
+  parse:d=>({ 
+    year:+d.ano||null, 
+    month:null, 
+    state:d.sigla_uf, 
+    category:d.categoria||'',
+    area:(+d.area_ha||0), 
+    name:d.nome_1, 
+    jurisdicao:d.esfera, // ← CORRIGIDO: estava d.jurisdicao
+    uso:d.grupo          // ← CORRIGIDO: estava d.uso
+  })
+}
     };
 
     const yearFilter = document.getElementById('yearFilter');
@@ -790,6 +812,11 @@
       return 'outros';
     }
 
+    function initializeFilterValues() {
+  jurisdicaoFilter.value = 'all';
+  usoFilter.value = 'all';
+  if (faseFilter) faseFilter.value = 'all';
+}
     /* ===========================
        MAPA: INICIALIZAÇÃO (com proteção)
     ============================ */
@@ -919,6 +946,15 @@
             if (!byUF.has(uf)) byUF.set(uf, []);
             byUF.get(uf).push(f);
           }
+            if (currentDataset === 'uc' && csvData.length > 0) {
+    const primeiroRegistro = csvData[0];
+    console.log("Propriedades do registro UC:", {
+      jurisdicao: primeiroRegistro.jurisdicao,
+      uso: primeiroRegistro.uso,
+      name: primeiroRegistro.name,
+      area: primeiroRegistro.area
+    });
+  }
           for (const [uf, feats] of byUF.entries()) {
             const name = UF_NAMES[uf] || uf;
             let bounds = null;
@@ -1037,32 +1073,40 @@
     }
 
     function exportCSVAnualSIMEX(ano){
-      const estado = estadoFilter.value;
-      const jurisdicao = currentDataset==='uc' ? jurisdicaoFilter.value : 'all';
-      const uso = currentDataset==='uc' ? usoFilter.value : 'all';
-      const fase = currentDataset==='terras' ? (faseFilter?.value || 'all') : 'all';
+  const estado = estadoFilter.value;
+  const jurisdicao = currentDataset==='uc' ? jurisdicaoFilter.value : 'all';
+  const uso = currentDataset==='uc' ? usoFilter.value : 'all';
+  const fase = currentDataset==='terras' ? (faseFilter?.value || 'all') : 'all';
 
-      let filtered = csvData.filter(d => d.year === +ano);
-      if (currentCategoryFilter !== 'all') filtered = filtered.filter(d => d.normalizedCategory === currentCategoryFilter);
-      if (estado !== 'all' && currentDataset !== 'estados') filtered = filtered.filter(d => d.state === estado);
-      if (currentDataset==='uc') {
-        if (jurisdicao !== 'all') filtered = filtered.filter(d => d.jurisdicao === jurisdicao);
-        if (uso !== 'all') filtered = filtered.filter(d => d.uso === uso);
-      }
-      if (currentDataset==='terras' && fase !== 'all') {
-        filtered = filtered.filter(d => (d.fase || '') === fase);
-      }
+  let filtered = csvData.filter(d => d.year === +ano);
+  if (currentCategoryFilter !== 'all') filtered = filtered.filter(d => d.normalizedCategory === currentCategoryFilter);
+  if (estado !== 'all' && currentDataset !== 'estados') filtered = filtered.filter(d => d.state === estado);
+  if (currentDataset==='uc') {
+    if (jurisdicao !== 'all') filtered = filtered.filter(d => d.jurisdicao === jurisdicao);
+    if (uso !== 'all') filtered = filtered.filter(d => d.uso === uso);
+  }
+  if (currentDataset==='terras' && fase !== 'all') {
+    filtered = filtered.filter(d => (d.fase || '') === fase);
+  }
 
-      const activeSel = selectionNamesAvailableInYear(+ano);
-      if (activeSel.length > 0) filtered = filtered.filter(d => activeSel.includes(d.name));
+  const activeSel = selectionNamesAvailableInYear(+ano);
+  if (activeSel.length > 0) filtered = filtered.filter(d => activeSel.includes(d.name));
 
-      const header = ['Ano','Estado','Nome','Categoria','Fase','Área (ha)'];
-      const rows = [header];
-      filtered.forEach(d => rows.push([d.year, d.state || '', d.name || '', d.category || '', d.fase || '', (d.area||0).toLocaleString('pt-BR')]));
-      const csv = toCSV_SIMEX(rows);
-      downloadBlobSIMEX(`simex_${currentDataset}_${ano}_${slugifySIMEX(exploracaoFilter.value)}_${nowStampSIMEX()}.csv`,
-        new Blob([csv], {type:'text/csv;charset=utf-8'}));
-    }
+  const header = ['Ano','Estado','Nome','Categoria','Jurisdição','Tipo de Uso','Área (ha)'];
+  const rows = [header];
+  filtered.forEach(d => rows.push([
+    d.year, 
+    d.state || '', 
+    d.name || '', 
+    d.category || '', 
+    d.jurisdicao || '',
+    mapUsoValue(d.uso || ''),
+    (d.area||0).toLocaleString('pt-BR')
+  ]));
+  const csv = toCSV_SIMEX(rows);
+  downloadBlobSIMEX(`simex_${currentDataset}_${ano}_${slugifySIMEX(exploracaoFilter.value)}_${nowStampSIMEX()}.csv`,
+    new Blob([csv], {type:'text/csv;charset=utf-8'}));
+}
 
     function exportGeoJSONAnualSIMEX(ano){
       if (currentDataset === 'all') {
@@ -1272,19 +1316,22 @@
     }
 
     function toggleExtraFilters() {
-      // UC: Jurisdição e Uso
-      const showUC = currentDataset === 'uc';
-      document.getElementById('jurisdicaoFilterGroup').style.display = showUC ? 'block' : 'none';
-      document.getElementById('usoFilterGroup').style.display = showUC ? 'block' : 'none';
+  // UC: Jurisdição e Uso
+  const showUC = currentDataset === 'uc';
+  const jurisdicaoGroup = document.getElementById('jurisdicaoFilterGroup');
+  const usoGroup = document.getElementById('usoFilterGroup');
+  
+  if (jurisdicaoGroup) jurisdicaoGroup.style.display = showUC ? 'block' : 'none';
+  if (usoGroup) usoGroup.style.display = showUC ? 'block' : 'none';
 
-      // Terras Indígenas: Fase
-      const showFase = currentDataset === 'terras';
-      const faseGrp = document.getElementById('faseFilterGroup');
-      if (faseGrp) {
-        faseGrp.style.display = showFase ? 'block' : 'none';
-        if (showFase) populateFaseFilterOptions();
-      }
-    }
+  // Terras Indígenas: Fase
+  const showFase = currentDataset === 'terras';
+  const faseGrp = document.getElementById('faseFilterGroup');
+  if (faseGrp) {
+    faseGrp.style.display = showFase ? 'block' : 'none';
+    if (showFase) populateFaseFilterOptions();
+  }
+}
 
     function getActiveSelectionForCurrentDataset(){
       switch(currentDataset){
@@ -1703,56 +1750,152 @@
     }
 
     function updateDashboard(){
-      const year = yearFilter.value; // 'all' ou um número
-      const estado = estadoFilter.value;
-      const jurisdicao = currentDataset==='uc' ? jurisdicaoFilter.value : 'all';
-      const uso = currentDataset==='uc' ? usoFilter.value : 'all';
-      const fase = currentDataset==='terras' ? (faseFilter?.value || 'all') : 'all';
+  const year = yearFilter.value;
+  const estado = estadoFilter.value;
+  
+  // IMPORTANTE: Só aplicar filtros de jurisdição e uso se o dataset for UC
+  const jurisdicao = currentDataset === 'uc' ? jurisdicaoFilter.value : 'all';
+  const uso = currentDataset === 'uc' ? usoFilter.value : 'all';
+  const fase = currentDataset === 'terras' ? (faseFilter?.value || 'all') : 'all';
 
-      const hadSelectionBefore = getActiveSelectionForCurrentDataset().length > 0;
-      const activeSel = selectionNamesAvailableInYear(year);
-      if (hadSelectionBefore && activeSel.length === 0) {
-        setActiveSelectionForCurrentDataset([]);
-        const toastEl = document.getElementById('toastAviso');
-        if (toastEl) bootstrap.Toast.getOrCreateInstance(toastEl).show();
-      }
+  console.log("Filtros ativos:", {
+    currentDataset, 
+    jurisdicao, 
+    uso, 
+    fase,
+    currentCategoryFilter,
+    estado,
+    year
+  });
 
-      let filtered = csvData;
-      if (year !== 'all') filtered = filtered.filter(d => d.year === +year);
+  // Debug: Ver dados disponíveis para UC
+  if (currentDataset === 'uc') {
+    const jurisdicoesDisponiveis = [...new Set(csvData.map(d => d.jurisdicao))];
+    const usosDisponiveis = [...new Set(csvData.map(d => d.uso))];
+    console.log("Jurisdições disponíveis nos dados:", jurisdicoesDisponiveis);
+    console.log("Tipos de uso disponíveis nos dados:", usosDisponiveis);
+    
+    // Ver dados antes da filtragem
+    const dadosAno = year !== 'all' ? csvData.filter(d => d.year === +year) : csvData;
+    console.log(`Total de dados UC para ano ${year}:`, dadosAno.length);
+  }
 
-      if (currentCategoryFilter !== 'all') filtered = filtered.filter(d => d.normalizedCategory === currentCategoryFilter);
-      if (estado !== 'all' && currentDataset !== 'estados') filtered = filtered.filter(d => d.state === estado);
-      if (currentDataset==='uc') {
-        if (jurisdicao !== 'all') filtered = filtered.filter(d => d.jurisdicao === jurisdicao);
-        if (uso !== 'all') filtered = filtered.filter(d => d.uso === uso);
-      }
-      if (currentDataset==='terras' && fase !== 'all') {
-        filtered = filtered.filter(d => (d.fase || '') === fase);
-      }
-      if (activeSel.length > 0) filtered = filtered.filter(d => activeSel.includes(d.name));
+  const hadSelectionBefore = getActiveSelectionForCurrentDataset().length > 0;
+  const activeSel = selectionNamesAvailableInYear(year);
+  
+  if (hadSelectionBefore && activeSel.length === 0) {
+    setActiveSelectionForCurrentDataset([]);
+    const toastEl = document.getElementById('toastAviso');
+    if (toastEl) bootstrap.Toast.getOrCreateInstance(toastEl).show();
+  }
 
-      const agg = {};
-      filtered.forEach(d => { if (d.name) agg[d.name] = (agg[d.name] || 0) + d.area; });
+  let filtered = csvData;
+  
+  // Filtro por ano
+  if (year !== 'all') {
+    const antesAno = filtered.length;
+    filtered = filtered.filter(d => d.year === +year);
+    console.log(`Filtrado por ano ${year}: ${antesAno} -> ${filtered.length} registros`);
+  }
 
-      if (activeSel.length > 0) {
-        rankingAll = activeSel
-          .map(n => [n, agg[n] || 0])
-          .filter(([,v]) => v > 0)
-          .sort(([,a],[,b]) => b - a);
-      } else {
-        rankingAll = Object.entries(agg)
-          .filter(([,v]) => v > 0)
-          .sort(([,a],[,b]) => b - a);
-      }
-
-      updateStats(agg);
-      if (year === 'all') updateYearlyChartForAllYears(); else updateYearlyChart();
-
-      setRankPage(0);
-      buildDownloadsListSIMEX(); // <== chips de anos apontando para S3
-      hideLoader();
+  // Filtro por categoria de exploração
+  if (currentCategoryFilter !== 'all') {
+    const antesCat = filtered.length;
+    filtered = filtered.filter(d => d.normalizedCategory === currentCategoryFilter);
+    console.log(`Filtrado por categoria ${currentCategoryFilter}: ${antesCat} -> ${filtered.length} registros`);
+  }
+  
+  // Filtro por estado
+  if (estado !== 'all' && currentDataset !== 'estados') {
+    const antesEstado = filtered.length;
+    filtered = filtered.filter(d => d.state === estado);
+    console.log(`Filtrado por estado ${estado}: ${antesEstado} -> ${filtered.length} registros`);
+  }
+  
+  // APLICAR FILTROS ESPECÍFICOS DE UC
+  if (currentDataset === 'uc') {
+    // Normalizar jurisdição para minúsculo para comparação
+    if (jurisdicao !== 'all') {
+      const jurisdicaoNormalized = jurisdicao.toLowerCase();
+      const antesJuris = filtered.length;
+      filtered = filtered.filter(d => d.jurisdicao.toLowerCase() === jurisdicaoNormalized);
+      console.log(`Filtrado por jurisdição ${jurisdicao} (normalized: ${jurisdicaoNormalized}): ${antesJuris} -> ${filtered.length} registros`);
     }
+    // O uso já está em maiúsculo nos dados, então comparamos diretamente (os valores do filtro são 'US' e 'PI')
+    if (uso !== 'all') {
+      const antesUso = filtered.length;
+      filtered = filtered.filter(d => d.uso === uso);
+      console.log(`Filtrado por uso ${uso}: ${antesUso} -> ${filtered.length} registros`);
+    }
+  }
+  
+  // APLICAR FILTRO DE FASE PARA TERRAS INDÍGENAS
+  if (currentDataset === 'terras' && fase !== 'all') {
+    const antesFase = filtered.length;
+    filtered = filtered.filter(d => (d.fase || '') === fase);
+    console.log(`Filtrado por fase ${fase}: ${antesFase} -> ${filtered.length} registros`);
+  }
+  
+  // Aplicar seleções ativas
+  if (activeSel.length > 0) {
+    const antesSel = filtered.length;
+    filtered = filtered.filter(d => activeSel.includes(d.name));
+    console.log(`Filtrado por seleções ativas (${activeSel.length} itens): ${antesSel} -> ${filtered.length} registros`);
+  }
 
+  console.log("Dados após todos os filtros:", filtered.length, "registros");
+  
+  // Se não há dados após filtragem, mostrar mensagem
+  if (filtered.length === 0) {
+    console.warn("Nenhum dado encontrado com os filtros aplicados");
+    // Você pode adicionar uma mensagem para o usuário aqui se desejar
+  }
+
+  // Agregar dados por nome
+  const agg = {};
+  filtered.forEach(d => { 
+    if (d.name && d.area) {
+      agg[d.name] = (agg[d.name] || 0) + d.area; 
+    }
+  });
+
+  console.log("Agregação por nome:", Object.keys(agg).length, "itens únicos");
+
+  // Construir ranking
+  if (activeSel.length > 0) {
+    // Se há seleções ativas, usar apenas os itens selecionados que têm dados
+    rankingAll = activeSel
+      .map(n => [n, agg[n] || 0])
+      .filter(([,v]) => v > 0)
+      .sort(([,a],[,b]) => b - a);
+  } else {
+    // Caso contrário, usar todos os itens com dados
+    rankingAll = Object.entries(agg)
+      .filter(([,v]) => v > 0)
+      .sort(([,a],[,b]) => b - a);
+  }
+
+  console.log("Ranking final:", rankingAll.length, "itens no ranking");
+
+  // Atualizar estatísticas
+  updateStats(agg);
+  
+  // Atualizar gráficos
+  if (year === 'all') {
+    updateYearlyChartForAllYears();
+  } else {
+    updateYearlyChart();
+  }
+
+  // Atualizar paginação do ranking e gráficos
+  setRankPage(0);
+  
+  // Atualizar lista de downloads
+  buildDownloadsListSIMEX();
+  
+  // Ocultar loader
+  hideLoader();
+}
     /* ===========================
        MODAIS / EVENTOS
     ============================ */
@@ -1868,7 +2011,7 @@
     ============================ */
     async function init(){
       showLoader("Iniciando dashboard...");
-
+      initializeFilterValues();
       // Inicializa o mapa com segurança
       mapInit();
 
@@ -1897,14 +2040,30 @@
       // Filtros
       exploracaoFilter.addEventListener('change', ()=>{ currentCategoryFilter = exploracaoFilter.value; showLoader("Atualizando..."); setTimeout(updateDashboard,100); });
       categoriaFilter.addEventListener('change', async ()=>{
-        currentDataset = categoriaFilter.value;
-        selectedTerras=[]; selectedMunicipios=[]; selectedEstados=[];
-        selectedImoveis=[]; selectedAssentamentos=[]; selectedTerrasSemDestinacao=[]; selectedUCs=[];
-        showLoader("Carregando novo conjunto de dados...");
-        await loadData(); toggleExtraFilters(); updateDashboard();
-      });
-      jurisdicaoFilter.addEventListener('change', ()=>{ showLoader("Filtrando..."); setTimeout(updateDashboard,100); });
-      usoFilter.addEventListener('change', ()=>{ showLoader("Filtrando..."); setTimeout(updateDashboard,100); });
+  currentDataset = categoriaFilter.value;
+  currentCategoryFilter = exploracaoFilter.value; // Manter o filtro de exploração atual
+  
+  // Limpar seleções anteriores
+  selectedTerras = []; selectedMunicipios = []; selectedEstados = [];
+  selectedImoveis = []; selectedAssentamentos = []; selectedTerrasSemDestinacao = []; selectedUCs = [];
+  
+  showLoader("Carregando novo conjunto de dados...");
+  await loadData(); 
+  toggleExtraFilters(); 
+  updateDashboard();
+});
+      jurisdicaoFilter.addEventListener('change', ()=>{ 
+  if (currentDataset === 'uc') {
+    showLoader("Filtrando por jurisdição..."); 
+    setTimeout(updateDashboard,100); 
+  }
+});
+usoFilter.addEventListener('change', ()=>{ 
+  if (currentDataset === 'uc') {
+    showLoader("Filtrando por tipo de uso..."); 
+    setTimeout(updateDashboard,100); 
+  }
+});
       faseFilter?.addEventListener('change', ()=>{ showLoader("Filtrando..."); setTimeout(updateDashboard,100); });
 
       document.getElementById('apply-filters').addEventListener('click', ()=>{ showLoader("Aplicando filtros..."); setTimeout(updateDashboard,100); });
