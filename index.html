@@ -425,7 +425,7 @@
     <!-- Downloads — SIMEX (Anual) -->
     <div class="card mt-3 downloads-card collapsed" id="downloads-simex-card" aria-live="polite">
       <div class="card-header">
-        <div class="downloads-title">Downloads (AWS S3)</div>
+        <div class="downloads-title">Downloads</div>
         <div class="typebar" id="simex-typebar" role="tablist" aria-label="Tipos de arquivo do SIMEX">
           <button class="typebtn active" data-type="geojson" role="tab" aria-selected="true" title="GeoJSON anual">
             <i class="fa-regular fa-map"></i> GeoJSON
@@ -1444,9 +1444,9 @@ function mapJurisdicaoValue(jurisdicao) {
         const title = document.createElement('div');
         title.className = 'format-title';
         title.textContent =
-          currentType==='csv'      ? 'CSV (S3 — anual)' :
-          currentType==='geojson'  ? 'GeoJSON (S3 — anual)' :
-                                     'Shapefile (ZIP) — S3 (anual)';
+          currentType==='csv'      ? 'CSV' :
+          currentType==='geojson'  ? 'GeoJSON' :
+                                     'Shapefile (ZIP)';
         formatCard.appendChild(title);
 
         const ul = document.createElement('ul');
