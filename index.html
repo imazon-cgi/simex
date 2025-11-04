@@ -93,6 +93,7 @@
     .fase-filter-group{ display:none; }
     .jurisdicao-filter-group{ display:none; }
     .uso-filter-group{ display:none; }
+    .incra-car-filter-group{ display:none; }
 
     .download-group{ display:flex;gap:6px; }
     .download-group.d-none{ display:none!important; }
@@ -114,7 +115,7 @@
     }
     .collapse-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.08)}
     .collapse-btn i{font-size:15px;transition:transform .25s ease}
-    .downloads-card.collapsed .collapse-btn i{transform:rotate(180deg)}
+    .collapse-btn.collapsed i{transform:rotate(180deg)}
 
     .typebar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-self:center}
     .typebtn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid #e0e0e0;background:#fff;color:#2b2b2b;cursor:pointer;font-weight:600}
@@ -247,6 +248,15 @@
           <label class="form-label fw-bold" for="faseFilter">Situação Jurídica </label>
           <select id="faseFilter" class="form-select">
             <option value="all">Todas</option>
+          </select>
+        </div>
+
+        <!-- Incra/CAR (apenas para Imóveis Rurais) -->
+        <div class="filter-item span-2 incra-car-filter-group" id="incraCarFilterGroup" style="display:none;">
+          <label class="form-label fw-bold" for="incraCarFilter">Incra/CAR</label>
+          <select id="incraCarFilter" class="form-select">
+            <option value="all">Todos</option>
+            <!-- Opções serão preenchidas dinamicamente -->
           </select>
         </div>
 
@@ -658,6 +668,32 @@
 
     const AMAZONIA_LEGAL_UF = ['AC','AP','AM','MT','PA','RO','RR','TO','MA'];
 
+    // Função para obter o artigo correto (masculino/feminino)
+    function getArtigo(dataset) {
+        return DATASET_GENDER[dataset] === 'F' ? 'as' : 'os';
+    }
+
+    // Função para obter o pronome correto (masculino/feminino)  
+    function getPronome(dataset) {
+        return DATASET_GENDER[dataset] === 'F' ? 'a' : 'o';
+    }
+
+    // Função para formatar o período correto (2007-2023)
+    function getPeriodo() {
+        const years = [...new Set(csvData.map(d => d.year))].sort((a, b) => a - b);
+        const minYear = Math.min(...years);
+        const maxYear = Math.max(...years);
+        return minYear === maxYear ? minYear : `${minYear} - ${maxYear}`;
+    }
+
+    // Função para obter anos válidos (sem 0 e sem itens vazios)
+    function getValidYears(data) {
+      return [...new Set(data.map(d => d.year))]
+        .map(y => Number(y))
+        .filter(y => !isNaN(y) && y >= 2007 && y <= new Date().getFullYear())
+        .sort((a, b) => a - b);
+    }
+
     function showLoader(message="Carregando dados..."){
       const loader = document.getElementById('loader-overlay');
       if (!loader) return;
@@ -670,7 +706,6 @@
       if (loader) loader.style.display = 'none';
     }
 
-    // Adicione esta função após as constantes no início do script
     function mapUsoValue(uso) {
       const map = {
         'US': 'Uso Sustentável',
@@ -709,7 +744,6 @@
       imoveis:"Imóveis Rurais", uc:"Unidades de Conservação"
     };
 
-    // gênero gramatical para textos
     const DATASET_GENDER = {
       estados: "M", municipios: "M", terras: "F", terras_sem_destinacao: "F",
       assentamentos: "M", imoveis: "M", uc: "F"
@@ -726,9 +760,16 @@
       imoveis:{
         geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_imoveisrurais.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.csv',
-        geoField:'name',
-        parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
-          area:(+d.area_ha||0),name:d.name })
+        geoField:'nome',
+        parse:d=>({ 
+          year:+d.ano||null,
+          month:null,
+          state:d.sigla_uf,
+          category:d.categoria||'',
+          area:(+d.area_ha||0),
+          name:d.nome,
+          sub_class:d.sub_class // Adicionando a coluna sub_class
+        })
       },
       municipios:{
         geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_mun.geojson',
@@ -747,14 +788,14 @@
       terras: {
         geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TI.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TI.csv',
-        geoField:'terrai_nom',
+        geoField:'nome',
         parse: d => ({
           year: +d.ano || null,
           month: null,
           state: d.sigla_uf,
           category: d.categoria || '',
           area: (+d.area_ha || 0),
-          name: d.terrai_nom,
+          name: d.nome,
           fase: (d['fase_ti'] ?? d['Fase_ti'] ?? d['FASE_TI'] ?? d.fase ?? d.Fase ?? '').toString().trim()
         })
       },
@@ -789,6 +830,7 @@
     const jurisdicaoFilter = document.getElementById('jurisdicaoFilter');
     const usoFilter = document.getElementById('usoFilter');
     const faseFilter = document.getElementById('faseFilter');
+    const incraCarFilter = document.getElementById('incraCarFilter');
     const totalAreaEl = document.getElementById('total-area');
     const affectedCountEl = document.getElementById('affected-count');
     const selectedNameEl = document.getElementById('selected-name');
@@ -818,6 +860,113 @@
       jurisdicaoFilter.value = 'all';
       usoFilter.value = 'all';
       if (faseFilter) faseFilter.value = 'all';
+      if (incraCarFilter) incraCarFilter.value = 'all';
+    }
+
+    /* ===========================
+       FUNÇÕES DO FILTRO INCRA/CAR
+    ============================ */
+    function populateIncraCarFilterOptions(){
+      const grp = document.getElementById('incraCarFilterGroup');
+      if (!grp) return;
+
+      if (currentDataset !== 'imoveis') {
+        grp.style.display = 'none';
+        return;
+      }
+
+      console.log("Procurando coluna 'sub_class' para filtro Incra/CAR...");
+      
+      // Usar especificamente a coluna 'sub_class' como solicitado
+      const colunaEncontrada = 'sub_class';
+      let colunaExiste = false;
+
+      // Verificar nos dados CSV
+      if (csvData && csvData.length > 0) {
+        const primeiroRegistro = csvData[0];
+        console.log("Primeiro registro de imóveis:", primeiroRegistro);
+        
+        if (primeiroRegistro.hasOwnProperty(colunaEncontrada)) {
+          colunaExiste = true;
+          console.log(`Coluna '${colunaEncontrada}' encontrada com valor:`, primeiroRegistro[colunaEncontrada]);
+        }
+      }
+
+      // Se não encontrou nos dados CSV, verificar nas propriedades do GeoJSON
+      if (!colunaExiste && geojson && geojson.features && geojson.features.length > 0) {
+        const primeiraFeature = geojson.features[0];
+        console.log("Primeira feature do GeoJSON:", primeiraFeature.properties);
+        
+        if (primeiraFeature.properties && primeiraFeature.properties[colunaEncontrada]) {
+          colunaExiste = true;
+          console.log(`Coluna '${colunaEncontrada}' encontrada no GeoJSON com valor:`, primeiraFeature.properties[colunaEncontrada]);
+        }
+      }
+
+      if (!colunaExiste) {
+        console.log("Coluna 'sub_class' não encontrada nos dados de imóveis.");
+        console.log("Colunas disponíveis no primeiro registro:", 
+                    csvData && csvData[0] ? Object.keys(csvData[0]) : "Sem dados CSV");
+        console.log("Colunas disponíveis na primeira feature:", 
+                    geojson && geojson.features[0] ? Object.keys(geojson.features[0].properties) : "Sem dados GeoJSON");
+        grp.style.display = 'none';
+        return;
+      }
+
+      // Coletar valores únicos para o filtro
+      const valoresUnicos = new Set();
+      
+      // Buscar nos dados CSV
+      if (csvData && csvData.length > 0) {
+        csvData.forEach(d => {
+          if (d[colunaEncontrada] && String(d[colunaEncontrada]).trim() !== '') {
+            // FILTRAR: não incluir o valor "sub_class" que é o nome da coluna
+            const valor = String(d[colunaEncontrada]).trim();
+            if (valor !== 'sub_class') {
+              valoresUnicos.add(valor);
+            }
+          }
+        });
+      }
+      
+      // Buscar no GeoJSON se necessário
+      if (valoresUnicos.size === 0 && geojson && geojson.features) {
+        geojson.features.forEach(f => {
+          if (f.properties && f.properties[colunaEncontrada] && String(f.properties[colunaEncontrada]).trim() !== '') {
+            // FILTRAR: não incluir o valor "sub_class" que é o nome da coluna
+            const valor = String(f.properties[colunaEncontrada]).trim();
+            if (valor !== 'sub_class') {
+              valoresUnicos.add(valor);
+            }
+          }
+        });
+      }
+
+      const tipos = Array.from(valoresUnicos).sort((a,b) => a.localeCompare(b,'pt-BR'));
+
+      console.log(`Opções de Incra/CAR encontradas na coluna 'sub_class' (${tipos.length}):`, tipos);
+
+      const sel = document.getElementById('incraCarFilter');
+      if (!sel) return;
+
+      sel.innerHTML = '<option value="all">Todos</option>';
+      tipos.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t; 
+        opt.textContent = t;
+        sel.appendChild(opt);
+      });
+
+      // Armazenar a coluna encontrada para uso posterior
+      sel.dataset.sourceColumn = colunaEncontrada;
+      grp.style.display = 'block';
+      
+      console.log(`Filtro Incra/CAR configurado com a coluna: ${colunaEncontrada}`);
+    }
+
+    function getIncraCarColumnName() {
+      const sel = document.getElementById('incraCarFilter');
+      return sel ? sel.dataset.sourceColumn : null;
     }
 
     /* ===========================
@@ -873,9 +1022,14 @@
       allOption.value = 'all';
       allOption.textContent = 'Todos os anos';
       yearFilter.appendChild(allOption);
-      years.forEach(y => {
+      
+      // Filtrar apenas anos válidos (entre 2007 e o ano atual)
+      const validYears = years.filter(y => y >= 2007 && y <= new Date().getFullYear());
+      
+      validYears.forEach(y => {
         const opt = document.createElement('option');
-        opt.value = y; opt.textContent = y;
+        opt.value = y; 
+        opt.textContent = y;
         yearFilter.appendChild(opt);
       });
       yearFilter.value = 'all';
@@ -896,11 +1050,18 @@
             const csvResponse = await fetch(spec.csv);
             const text = await csvResponse.text();
             const parsedData = d3.csvParse(text, spec.parse);
-            parsedData.forEach(d => {
+            
+            // Filtrar dados com anos válidos
+            const filteredData = parsedData.filter(d => {
+              const year = +d.year;
+              return !isNaN(year) && year >= 2007 && year <= new Date().getFullYear();
+            });
+            
+            filteredData.forEach(d => {
               d.dataset = datasetKey;
               d.normalizedCategory = normalizeCategory(d.category);
             });
-            allData.push(...parsedData);
+            allData.push(...filteredData);
             
             const geoResponse = await fetch(spec.geo);
             const geoData = await geoResponse.json();
@@ -931,6 +1092,7 @@
         });
         
       } else {
+        // Código para dataset específico - também aplicar filtro de anos
         const spec = DATASETS[currentDataset];
 
         const geoResponse = await fetch(spec.geo);
@@ -944,15 +1106,6 @@
             if (!uf) continue;
             if (!byUF.has(uf)) byUF.set(uf, []);
             byUF.get(uf).push(f);
-          }
-          if (currentDataset === 'uc' && csvData.length > 0) {
-            const primeiroRegistro = csvData[0];
-            console.log("Propriedades do registro UC:", {
-              jurisdicao: primeiroRegistro.jurisdicao,
-              uso: primeiroRegistro.uso,
-              name: primeiroRegistro.name,
-              area: primeiroRegistro.area
-            });
           }
           for (const [uf, feats] of byUF.entries()) {
             const name = UF_NAMES[uf] || uf;
@@ -978,7 +1131,14 @@
 
         const csvResponse = await fetch(spec.csv);
         const text = await csvResponse.text();
-        csvData = d3.csvParse(text, spec.parse);
+        const parsedData = d3.csvParse(text, spec.parse);
+        
+        // Filtrar dados com anos válidos
+        csvData = parsedData.filter(d => {
+          const year = +d.year;
+          return !isNaN(year) && year >= 2007 && year <= new Date().getFullYear();
+        });
+        
         csvData.forEach(d => {
           d.normalizedCategory = normalizeCategory(d.category);
           d.dataset = currentDataset;
@@ -989,7 +1149,7 @@
         csvData = csvData.filter(d => AMAZONIA_LEGAL_UF.includes(d.state));
       }
 
-      const years = [...new Set(csvData.map(d => d.year))].sort((a,b)=>a-b);
+      const years = getValidYears(csvData);
       populateYearFilter(years);
 
       document.getElementById('terrasSelectGroup').style.display = currentDataset === 'terras' ? 'block' : 'none';
@@ -1073,6 +1233,8 @@
       const jurisdicao = currentDataset==='uc' ? jurisdicaoFilter.value : 'all';
       const uso = currentDataset==='uc' ? usoFilter.value : 'all';
       const fase = currentDataset==='terras' ? (faseFilter?.value || 'all') : 'all';
+      const incraCar = currentDataset==='imoveis' ? (incraCarFilter?.value || 'all') : 'all';
+      const incraCarColumn = getIncraCarColumnName();
 
       let filtered = csvData.filter(d => d.year === +ano);
       if (currentCategoryFilter !== 'all') filtered = filtered.filter(d => d.normalizedCategory === currentCategoryFilter);
@@ -1084,11 +1246,14 @@
       if (currentDataset==='terras' && fase !== 'all') {
         filtered = filtered.filter(d => (d.fase || '') === fase);
       }
+      if (currentDataset==='imoveis' && incraCar !== 'all' && incraCarColumn) {
+        filtered = filtered.filter(d => (d[incraCarColumn] || '') === incraCar);
+      }
 
       const activeSel = selectionNamesAvailableInYear(+ano);
       if (activeSel.length > 0) filtered = filtered.filter(d => activeSel.includes(d.name));
 
-      const header = ['Ano','Estado','Nome','Categoria','Jurisdição','Tipo de Uso','Área (ha)'];
+      const header = ['Ano','Estado','Nome','Categoria','Jurisdição','Tipo de Uso','Incra/CAR','Área (ha)'];
       const rows = [header];
       filtered.forEach(d => rows.push([
         d.year, 
@@ -1097,6 +1262,7 @@
         d.category || '', 
         d.jurisdicao || '',
         mapUsoValue(d.uso || ''),
+        incraCarColumn && d[incraCarColumn] ? d[incraCarColumn] : '',
         (d.area||0).toLocaleString('pt-BR')
       ]));
       const csv = toCSV_SIMEX(rows);
@@ -1117,6 +1283,8 @@
       const jurisdicao = currentDataset==='uc' ? jurisdicaoFilter.value : 'all';
       const uso = currentDataset==='uc' ? usoFilter.value : 'all';
       const fase = currentDataset==='terras' ? (faseFilter?.value || 'all') : 'all';
+      const incraCar = currentDataset==='imoveis' ? (incraCarFilter?.value || 'all') : 'all';
+      const incraCarColumn = getIncraCarColumnName();
 
       let filtered = csvData.filter(d => d.year === +ano);
       if (currentCategoryFilter !== 'all') filtered = filtered.filter(d => d.normalizedCategory === currentCategoryFilter);
@@ -1127,6 +1295,9 @@
       }
       if (currentDataset==='terras' && fase !== 'all') {
         filtered = filtered.filter(d => (d.fase || '') === fase);
+      }
+      if (currentDataset==='imoveis' && incraCar !== 'all' && incraCarColumn) {
+        filtered = filtered.filter(d => (d[incraCarColumn] || '') === incraCar);
       }
       const activeSel = selectionNamesAvailableInYear(+ano);
       if (activeSel.length > 0) filtered = filtered.filter(d => activeSel.includes(d.name));
@@ -1181,6 +1352,13 @@
     function updateMap(aggData, namesToShow){
       if (!map) return;
       if (geoLayer) { map.removeLayer(geoLayer); geoLayer = null; }
+      
+      // CORREÇÃO: Atualizar título do mapa com pronome correto
+      const mapTitleEl = document.querySelector('.card .chart-title i.fa-map')?.parentNode;
+if (mapTitleEl) {
+  mapTitleEl.innerHTML = `<i class="fas fa-map me-2"></i>Mapa das Áreas Mais Atingidas`;
+}
+
       if (!geojson || !Array.isArray(geojson.features)) {
         if (baseBounds && baseBounds.isValid()) map.fitBounds(baseBounds, { padding:[20,20] });
         return;
@@ -1323,6 +1501,28 @@
         faseGrp.style.display = showFase ? 'block' : 'none';
         if (showFase) populateFaseFilterOptions();
       }
+
+      // Mostrar o filtro Incra/CAR apenas para Imóveis Rurais
+      const showIncraCar = currentDataset === 'imoveis';
+      const incraCarGrp = document.getElementById('incraCarFilterGroup');
+      if (incraCarGrp) {
+        if (showIncraCar) {
+          incraCarGrp.style.display = 'block';
+          // Garantir que os dados estão carregados antes de popular o filtro
+          if (csvData && csvData.length > 0) {
+            populateIncraCarFilterOptions();
+          } else {
+            // Se os dados ainda não carregaram, tentar novamente em breve
+            setTimeout(() => {
+              if (csvData && csvData.length > 0) {
+                populateIncraCarFilterOptions();
+              }
+            }, 500);
+          }
+        } else {
+          incraCarGrp.style.display = 'none';
+        }
+      }
     }
 
     function getActiveSelectionForCurrentDataset(){
@@ -1388,6 +1588,7 @@
         const card = document.getElementById('downloads-simex-card');
         const collapsed = card.classList.toggle('collapsed');
         toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        toggleBtn.classList.toggle('collapsed', collapsed);
       };
 
       if (!typebar.dataset.bound){
@@ -1521,6 +1722,13 @@
 
       currentBarData = { labels, values };
 
+      // Atualizar título do ranking com pronome correto
+      const rankingTitleEl = document.querySelector('.card .chart-title');
+if (rankingTitleEl) {
+  rankingTitleEl.innerHTML = `<i class="fas fa-chart-bar me-2"></i>Ranking das Áreas Mais Atingidas`;
+}
+
+
       barChart = new Chart(canvas.getContext('2d'), {
         type:'bar',
         data:{ labels, datasets:[{
@@ -1573,273 +1781,83 @@
         }
       });
     }
-    // === NOVO: gráfico anual usa os MESMOS dados já filtrados no dashboard ===
-function updateYearlyChartFromFiltered(filteredRows) {
-  const canvas = document.getElementById('yearlyChart');
-  if (yearlyChart) yearlyChart.destroy();
 
-  // queremos sempre 2007 -> 2023 (ou o que tiver no CSV)
-  const years = [...new Set(csvData.map(d => d.year))].sort((a, b) => a - b);
-
-  // para cada ano, somo só o que SOBROU do dashboard
-  const data = years.map(y => {
-    return filteredRows
-      .filter(d => d.year === y)
-      .reduce((s, d) => s + d.area, 0);
-  });
-
-  currentYearlyData = { labels: years, values: data };
-  const maxVal = Math.max(...data, 1);
-
-  yearlyChart = new Chart(canvas.getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels: years,
-      datasets: [{
-        data,
-        backgroundColor: 'rgba(198,40,40,.7)',
-        borderColor: 'rgba(198,40,40,1)',
-        borderWidth: 2,
-        borderRadius: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        datalabels: isSmallScreen() ? false : {
-          anchor: 'end',
-          align: 'top',
-          color: '#333',
-          font: { weight: 'bold', size: isSmallScreen() ? 9 : 10 },
-          formatter: v => v.toLocaleString('pt-BR', { maximumFractionDigits: 0 }),
-          clamp: true,
-          clip: false
-        },
-        tooltip: {
-          callbacks: {
-            label: (ctx) =>
-              `Área total: ${ctx.raw.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`
-          }
-        }
-      },
-      layout: {
-        padding: isSmallScreen()
-          ? { left: 0, right: 10, top: 0, bottom: 0 }
-          : { right: 12 }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          suggestedMax: withHeadroom(maxVal, .12),
-          grid: { display: false },
-          title: { display: true, text: 'Área Total (ha)' }
-        },
-        x: {
-          grid: { display: false },
-          title: { display: true, text: 'Ano' },
-          ticks: {
-            maxRotation: isSmallScreen() ? 0 : 40,
-            minRotation: isSmallScreen() ? 0 : 40,
-            autoSkip: true,
-            maxTicksLimit: isSmallScreen() ? 6 : (isTabletScreen() ? 10 : 14)
-          }
-        }
-      }
-    }
-  });
-}
-
-    /* ====== FUNÇÃO CORRIGIDA 1: aplica filtros mesmo quando o ano NÃO é "all" ====== */
-//    function updateYearlyChart(){
-//      const canvas = document.getElementById('yearlyChart');
-//      if (yearlyChart) yearlyChart.destroy();
-//
-//      const years = [...new Set(csvData.map(d => d.year))].sort((a,b)=>a-b);
-//
-//      // capturar filtros atuais
-//      const estadoSel     = estadoFilter.value;
-//      const catSel        = currentCategoryFilter;
-//      const isUC          = currentDataset === 'uc';
-//      const isTerras      = currentDataset === 'terras';
-//      const jurisSel      = isUC ? jurisdicaoFilter.value : 'all';
-//      const usoSel        = isUC ? usoFilter.value : 'all';
-//      const faseSel       = isTerras ? (faseFilter?.value || 'all') : 'all';
-//      const selecaoAtiva  = selectionNamesAvailableInYear('all');
-//
-//      const data = years.map(y => {
-//        let yearData = csvData.filter(d => d.year === y);
-//
-//        if (catSel !== 'all') {
-//          yearData = yearData.filter(d => d.normalizedCategory === catSel);
-//        }
-//
-//        if (estadoSel !== 'all' && currentDataset !== 'estados') {
-//          yearData = yearData.filter(d => d.state === estadoSel);
-//        }
-//
-//        if (isUC) {
-//          if (jurisSel !== 'all') {
-//            const jNorm = jurisSel.toLowerCase();
-//            yearData = yearData.filter(d => (d.jurisdicao || '').toLowerCase() === jNorm);
-//          }
-//          if (usoSel !== 'all') {
-//            yearData = yearData.filter(d => (d.uso || '').toUpperCase() === usoSel);
-//          }
-//        }
-//
-//        if (isTerras && faseSel !== 'all') {
-//          yearData = yearData.filter(d => (d.fase || '') === faseSel);
-//        }
-//
-//        if (selecaoAtiva.length > 0) {
-//          yearData = yearData.filter(d => selecaoAtiva.includes(d.name));
-//        }
-//
-//        return yearData.reduce((s, d) => s + d.area, 0);
-//      });
-//
-//      currentYearlyData = { labels:years, values:data };
-//      const maxVal = Math.max(...data, 1);
-//
-//      yearlyChart = new Chart(canvas.getContext('2d'), {
-//        type:'bar',
-//        data:{ labels:years, datasets:[{
-//          data, backgroundColor:'rgba(198,40,40,.7)', borderColor:'rgba(198,40,40,1)',
-//          borderWidth:2, borderRadius:4
-//        }]},
-//        options:{
-//          responsive:true, maintainAspectRatio:false,
-//          plugins:{
-//            legend:{ display:false },
-//            datalabels: isSmallScreen()? false : {
-//              anchor:'end', align:'top', color:'#333',
-//              font:{ weight:'bold', size:isSmallScreen()?9:10 },
-//              formatter:v=>v.toLocaleString('pt-BR',{maximumFractionDigits:0}),
-//              clamp:true, clip:false
-//            },
-//            tooltip: {
-//              callbacks: {
-//                label: (context) => {
-//                  return `Área total: ${context.raw.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`;
-//                }
-//              }
-//            }
-//          },
-//          layout:{ padding: isSmallScreen()? {left:0,right:10,top:0,bottom:0} : {right:12} },
-//          scales:{
-//            y:{ beginAtZero:true, suggestedMax: withHeadroom(maxVal, .12), grid:{display:false}, title:{display:true,text:'Área (ha)'} },
-//            x:{ grid:{display:false}, title:{display:true,text:'Ano'},
-//                ticks:{ maxRotation:isSmallScreen()?0:40, minRotation:isSmallScreen()?0:40,
-//                        autoSkip:true, maxTicksLimit:isSmallScreen()?6:(isTabletScreen()?10:14) } }
-//          }
-//        }
-//      });
-//    }
-//    
-    /* ====== FUNÇÃO CORRIGIDA 2: aplica filtros quando o ano é "all" ====== */
-    function updateYearlyChartForAllYears() {
+    function updateYearlyChartFromFiltered(filteredRows) {
       const canvas = document.getElementById('yearlyChart');
       if (yearlyChart) yearlyChart.destroy();
-      
-      const years = [...new Set(csvData.map(d => d.year))].sort((a,b)=>a-b);
 
-      const estadoSel     = estadoFilter.value;
-      const catSel        = currentCategoryFilter;
-      const isUC          = currentDataset === 'uc';
-      const isTerras      = currentDataset === 'terras';
-      const jurisSel      = isUC ? jurisdicaoFilter.value : 'all';
-      const usoSel        = isUC ? usoFilter.value : 'all';
-      const faseSel       = isTerras ? (faseFilter?.value || 'all') : 'all';
-      const selecaoAtiva  = selectionNamesAvailableInYear('all');
+      const years = [...new Set(csvData.map(d => d.year))].sort((a, b) => a - b);
 
       const data = years.map(y => {
-        let yearData = csvData.filter(d => d.year === y);
-
-        if (catSel !== 'all') {
-          yearData = yearData.filter(d => d.normalizedCategory === catSel);
-        }
-
-        if (estadoSel !== 'all' && currentDataset !== 'estados') {
-          yearData = yearData.filter(d => d.state === estadoSel);
-        }
-
-        if (isUC) {
-          if (jurisSel !== 'all') {
-            const jNorm = jurisSel.toLowerCase();
-            yearData = yearData.filter(d => (d.jurisdicao || '').toLowerCase() === jNorm);
-          }
-          if (usoSel !== 'all') {
-            yearData = yearData.filter(d => (d.uso || '').toUpperCase() === usoSel);
-          }
-        }
-
-        if (isTerras && faseSel !== 'all') {
-          yearData = yearData.filter(d => (d.fase || '') === faseSel);
-        }
-
-        if (selecaoAtiva.length > 0) {
-          yearData = yearData.filter(d => selecaoAtiva.includes(d.name));
-        }
-
-        return yearData.reduce((s, d) => s + d.area, 0);
+        return filteredRows
+          .filter(d => d.year === y)
+          .reduce((s, d) => s + d.area, 0);
       });
-      
+
       currentYearlyData = { labels: years, values: data };
       const maxVal = Math.max(...data, 1);
 
+      // CORREÇÃO: Atualizar título com período correto
+      const periodo = getPeriodo();
+      const yearlyTitleEl = document.querySelector('.card .chart-title i.fa-chart-area')?.parentNode;
+      if (yearlyTitleEl) {
+        yearlyTitleEl.innerHTML = `<i class="fas fa-chart-area me-2"></i>Série Histórica Anual (${periodo})`;
+      }
+
       yearlyChart = new Chart(canvas.getContext('2d'), {
         type: 'bar',
-        data: { 
-          labels: years, 
+        data: {
+          labels: years,
           datasets: [{
-            data, 
-            backgroundColor: 'rgba(198,40,40,.7)', 
+            data,
+            backgroundColor: 'rgba(198,40,40,.7)',
             borderColor: 'rgba(198,40,40,1)',
-            borderWidth: 2, 
+            borderWidth: 2,
             borderRadius: 4
           }]
         },
         options: {
-          responsive: true, 
+          responsive: true,
           maintainAspectRatio: false,
           plugins: {
             legend: { display: false },
             datalabels: isSmallScreen() ? false : {
-              anchor: 'end', 
-              align: 'top', 
+              anchor: 'end',
+              align: 'top',
               color: '#333',
               font: { weight: 'bold', size: isSmallScreen() ? 9 : 10 },
               formatter: v => v.toLocaleString('pt-BR', { maximumFractionDigits: 0 }),
-              clamp: true, 
+              clamp: true,
               clip: false
             },
             tooltip: {
               callbacks: {
-                label: (context) => {
-                  return `Área total: ${context.raw.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`;
-                }
+                label: (ctx) =>
+                  `Área total: ${ctx.raw.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ha`
               }
             }
           },
-          layout: { padding: isSmallScreen() ? { left: 0, right: 10, top: 0, bottom: 0 } : { right: 12 } },
+          layout: {
+            padding: isSmallScreen()
+              ? { left: 0, right: 10, top: 0, bottom: 0 }
+              : { right: 12 }
+          },
           scales: {
-            y: { 
-              beginAtZero: true, 
-              suggestedMax: withHeadroom(maxVal, .12), 
-              grid: { display: false }, 
-              title: { display: true, text: 'Área Total (ha)' } 
+            y: {
+              beginAtZero: true,
+              suggestedMax: withHeadroom(maxVal, .12),
+              grid: { display: false },
+              title: { display: true, text: 'Área Total (ha)' }
             },
-            x: { 
-              grid: { display: false }, 
+            x: {
+              grid: { display: false },
               title: { display: true, text: 'Ano' },
-              ticks: { 
-                maxRotation: isSmallScreen() ? 0 : 40, 
+              ticks: {
+                maxRotation: isSmallScreen() ? 0 : 40,
                 minRotation: isSmallScreen() ? 0 : 40,
-                autoSkip: true, 
-                maxTicksLimit: isSmallScreen() ? 6 : (isTabletScreen() ? 10 : 14) 
-              } 
+                autoSkip: true,
+                maxTicksLimit: isSmallScreen() ? 6 : (isTabletScreen() ? 10 : 14)
+              }
             }
           }
         }
@@ -1847,129 +1865,140 @@ function updateYearlyChartFromFiltered(filteredRows) {
     }
 
     function updateLineChart(year, topNames) {
-  const ctx = document.getElementById('lineChart').getContext('2d');
-  if (lineChart) lineChart.destroy();
-  
-  const years = [...new Set(csvData.map(d => d.year))].sort((a, b) => a - b);
-  const colors = d3.schemeTableau10;
-  
-  // Capturar todos os filtros atuais
-  const estadoSel = estadoFilter.value;
-  const catSel = currentCategoryFilter;
-  const isUC = currentDataset === 'uc';
-  const isTerras = currentDataset === 'terras';
-  const jurisSel = isUC ? jurisdicaoFilter.value : 'all';
-  const usoSel = isUC ? usoFilter.value : 'all';
-  const faseSel = isTerras ? (faseFilter?.value || 'all') : 'all';
-  const selecaoAtiva = selectionNamesAvailableInYear('all');
+      const ctx = document.getElementById('lineChart').getContext('2d');
+      if (lineChart) lineChart.destroy();
+      
+      const years = [...new Set(csvData.map(d => d.year))].sort((a, b) => a - b);
+      const colors = d3.schemeTableau10;
+      
+      const estadoSel = estadoFilter.value;
+      const catSel = currentCategoryFilter;
+      const isUC = currentDataset === 'uc';
+      const isTerras = currentDataset === 'terras';
+      const isImoveis = currentDataset === 'imoveis';
+      const jurisSel = isUC ? jurisdicaoFilter.value : 'all';
+      const usoSel = isUC ? usoFilter.value : 'all';
+      const faseSel = isTerras ? (faseFilter?.value || 'all') : 'all';
+      const incraCarSel = isImoveis ? (incraCarFilter?.value || 'all') : 'all';
+      const incraCarColumn = getIncraCarColumnName();
+      const selecaoAtiva = selectionNamesAvailableInYear('all');
 
-  const datasets = topNames.map((nm, i) => {
-    const data = years.map(y => {
-      // Filtrar dados para cada ano e nome, aplicando TODOS os filtros
-      let yearData = csvData.filter(d => d.year === y && d.name === nm);
+      const datasets = topNames.map((nm, i) => {
+        const data = years.map(y => {
+          let yearData = csvData.filter(d => d.year === y && d.name === nm);
 
-      if (catSel !== 'all') {
-        yearData = yearData.filter(d => d.normalizedCategory === catSel);
-      }
-
-      if (estadoSel !== 'all' && currentDataset !== 'estados') {
-        yearData = yearData.filter(d => d.state === estadoSel);
-      }
-
-      if (isUC) {
-        if (jurisSel !== 'all') {
-          const jNorm = jurisSel.toLowerCase();
-          yearData = yearData.filter(d => (d.jurisdicao || '').toLowerCase() === jNorm);
-        }
-        if (usoSel !== 'all') {
-          yearData = yearData.filter(d => (d.uso || '').toUpperCase() === usoSel);
-        }
-      }
-
-      if (isTerras && faseSel !== 'all') {
-        yearData = yearData.filter(d => (d.fase || '') === faseSel);
-      }
-
-      if (selecaoAtiva.length > 0) {
-        yearData = yearData.filter(d => selecaoAtiva.includes(d.name));
-      }
-
-      return yearData.reduce((s, d) => s + d.area, 0);
-    });
-
-    return {
-      label: nm,
-      data,
-      borderColor: colors[i % colors.length],
-      backgroundColor: colors[i % colors.length],
-      borderWidth: 2.5,
-      fill: false,
-      pointRadius: isSmallScreen() ? 2.5 : 3.5
-    };
-  });
-
-  currentLineData = { labels: years, datasets };
-  const maxY = withHeadroom(Math.max(0, ...datasets.flatMap(d => d.data)), 0.12);
-
-  const minYear = Math.min(...years);
-  const maxYear = Math.max(...years);
-  const periodo = minYear === maxYear ? minYear : `${minYear} - ${maxYear}`;
-  const datasetLabel = currentDataset === 'all' ? "Todos os Territórios" : (DATASET_LABELS[currentDataset] || "Itens");
-  
-  const lineChartTitleEl = document.querySelector('.card .chart-title i.fa-chart-line')?.parentNode;
-  if (lineChartTitleEl) {
-    lineChartTitleEl.innerHTML = `<i class="fas fa-chart-line me-2"></i>Gráfico Série Histórica das ${datasetLabel} (${periodo})`;
-  }
-
-  lineChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels: years, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: !isSmallScreen(),
-          position: isSmallScreen() ? 'bottom' : 'top',
-          align: 'end',
-          labels: {
-            usePointStyle: true,
-            pointStyle: 'circle',
-            boxWidth: 10,
-            boxHeight: 10,
-            padding: 10,
-            font: { size: isSmallScreen() ? 10 : 11, weight: '600' }
+          if (catSel !== 'all') {
+            yearData = yearData.filter(d => d.normalizedCategory === catSel);
           }
-        },
-        datalabels: false,
-        tooltip: {
-          callbacks: {
-            label: ctx => (ctx.parsed.y ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' ha'
+
+          if (estadoSel !== 'all' && currentDataset !== 'estados') {
+            yearData = yearData.filter(d => d.state === estadoSel);
           }
-        }
-      },
-      layout: { padding: isSmallScreen() ? { left: 0, right: 6, top: 0, bottom: 0 } : 0 },
-      scales: {
-        y: {
-          beginAtZero: true,
-          suggestedMax: maxY,
-          grid: { display: false },
-          title: { display: true, text: 'Área (ha)', font: { weight: '600' } }
-        },
-        x: {
-          grid: { display: false },
-          title: { display: true, text: 'Ano', font: { weight: '600' } },
-          ticks: {
-            maxRotation: isSmallScreen() ? 0 : 40,
-            minRotation: isSmallScreen() ? 0 : 40,
-            autoSkip: true,
-            maxTicksLimit: isSmallScreen() ? 6 : (isTabletScreen() ? 10 : 14)
+
+          if (isUC) {
+            if (jurisSel !== 'all') {
+              const jNorm = jurisSel.toLowerCase();
+              yearData = yearData.filter(d => (d.jurisdicao || '').toLowerCase() === jNorm);
+            }
+            if (usoSel !== 'all') {
+              yearData = yearData.filter(d => (d.uso || '').toUpperCase() === usoSel);
+            }
           }
-        }
-      }
-    }
-  });
+
+          if (isTerras && faseSel !== 'all') {
+            yearData = yearData.filter(d => (d.fase || '') === faseSel);
+          }
+
+          if (isImoveis && incraCarSel !== 'all' && incraCarColumn) {
+            yearData = yearData.filter(d => (d[incraCarColumn] || '') === incraCarSel);
+          }
+
+          if (selecaoAtiva.length > 0) {
+            yearData = yearData.filter(d => selecaoAtiva.includes(d.name));
+          }
+
+          return yearData.reduce((s, d) => s + d.area, 0);
+        });
+
+        return {
+          label: nm,
+          data,
+          borderColor: colors[i % colors.length],
+          backgroundColor: colors[i % colors.length],
+          borderWidth: 2.5,
+          fill: false,
+          pointRadius: isSmallScreen() ? 2.5 : 3.5
+        };
+      });
+
+      currentLineData = { labels: years, datasets };
+      const maxY = withHeadroom(Math.max(0, ...datasets.flatMap(d => d.data)), 0.12);
+
+      // CORREÇÃO: Usar período correto (2007-2023) e pronome adequado
+      const periodo = getPeriodo();
+      const artigo = getPronome(currentDataset);
+      const datasetLabel = currentDataset === 'all'
+  ? "Todos os Territórios"
+  : (DATASET_LABELS[currentDataset] || "Itens");
+
+// “de” para “Todos os Territórios”; “dos/das” conforme o gênero do dataset
+const prep = currentDataset === 'all' ? 'de' : `d${getPronome(currentDataset)}s`;
+
+const lineChartTitleEl = document.querySelector('.card .chart-title i.fa-chart-line')?.parentNode;
+if (lineChartTitleEl) {
+  lineChartTitleEl.innerHTML = `<i class="fas fa-chart-line me-2"></i>Série Histórica ${prep} ${datasetLabel} (${periodo})`;
 }
+
+
+      lineChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: years, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: !isSmallScreen(),
+              position: isSmallScreen() ? 'bottom' : 'top',
+              align: 'end',
+              labels: {
+                usePointStyle: true,
+                pointStyle: 'circle',
+                boxWidth: 10,
+                boxHeight: 10,
+                padding: 10,
+                font: { size: isSmallScreen() ? 10 : 11, weight: '600' }
+              }
+            },
+            datalabels: false,
+            tooltip: {
+              callbacks: {
+                label: ctx => (ctx.parsed.y ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' ha'
+              }
+            }
+          },
+          layout: { padding: isSmallScreen() ? { left: 0, right: 6, top: 0, bottom: 0 } : 0 },
+          scales: {
+            y: {
+              beginAtZero: true,
+              suggestedMax: maxY,
+              grid: { display: false },
+              title: { display: true, text: 'Área (ha)', font: { weight: '600' } }
+            },
+            x: {
+              grid: { display: false },
+              title: { display: true, text: 'Ano', font: { weight: '600' } },
+              ticks: {
+                maxRotation: isSmallScreen() ? 0 : 40,
+                minRotation: isSmallScreen() ? 0 : 40,
+                autoSkip: true,
+                maxTicksLimit: isSmallScreen() ? 6 : (isTabletScreen() ? 10 : 14)
+              }
+            }
+          }
+        }
+      });
+    }
 
     function updateDashboard(){
       const year = yearFilter.value;
@@ -1978,26 +2007,20 @@ function updateYearlyChartFromFiltered(filteredRows) {
       const jurisdicao = currentDataset === 'uc' ? jurisdicaoFilter.value : 'all';
       const uso = currentDataset === 'uc' ? usoFilter.value : 'all';
       const fase = currentDataset === 'terras' ? (faseFilter?.value || 'all') : 'all';
+      const incraCar = currentDataset === 'imoveis' ? (incraCarFilter?.value || 'all') : 'all';
+      const incraCarColumn = getIncraCarColumnName();
 
       console.log("Filtros ativos:", {
         currentDataset, 
         jurisdicao, 
         uso, 
         fase,
+        incraCar,
+        incraCarColumn,
         currentCategoryFilter,
         estado,
         year
       });
-
-      if (currentDataset === 'uc') {
-        const jurisdicoesDisponiveis = [...new Set(csvData.map(d => d.jurisdicao))];
-        const usosDisponiveis = [...new Set(csvData.map(d => d.uso))];
-        console.log("Jurisdições disponíveis nos dados:", jurisdicoesDisponiveis);
-        console.log("Tipos de uso disponíveis nos dados:", usosDisponiveis);
-        
-        const dadosAno = year !== 'all' ? csvData.filter(d => d.year === +year) : csvData;
-        console.log(`Total de dados UC para ano ${year}:`, dadosAno.length);
-      }
 
       const hadSelectionBefore = getActiveSelectionForCurrentDataset().length > 0;
       const activeSel = selectionNamesAvailableInYear(year);
@@ -2048,6 +2071,12 @@ function updateYearlyChartFromFiltered(filteredRows) {
         console.log(`Filtrado por fase ${fase}: ${antesFase} -> ${filtered.length} registros`);
       }
       
+      if (currentDataset === 'imoveis' && incraCar !== 'all' && incraCarColumn) {
+        const antesIncraCar = filtered.length;
+        filtered = filtered.filter(d => (d[incraCarColumn] || '') === incraCar);
+        console.log(`Filtrado por Incra/CAR ${incraCar}: ${antesIncraCar} -> ${filtered.length} registros`);
+      }
+      
       if (activeSel.length > 0) {
         const antesSel = filtered.length;
         filtered = filtered.filter(d => activeSel.includes(d.name));
@@ -2079,23 +2108,13 @@ function updateYearlyChartFromFiltered(filteredRows) {
       console.log("Ranking final:", rankingAll.length, "itens no ranking");
 
       updateStats(agg);
-      
-      updateStats(agg);
 
-      // ATUALIZAR O GRÁFICO ANUAL COM OS MESMOS DADOS FILTRADOS
       updateYearlyChartFromFiltered(filtered);
 
-      // Atualizar paginação / bar / mapa
       setRankPage(0);
 
-      // Atualizar lista de downloads
       buildDownloadsListSIMEX();
 
-      hideLoader();
-// Ocultar loader
-
-      setRankPage(0);
-      buildDownloadsListSIMEX();
       hideLoader();
     }
 
@@ -2262,6 +2281,12 @@ function updateYearlyChartFromFiltered(filteredRows) {
         }
       });
       faseFilter?.addEventListener('change', ()=>{ showLoader("Filtrando..."); setTimeout(updateDashboard,100); });
+      incraCarFilter?.addEventListener('change', ()=>{ 
+        if (currentDataset === 'imoveis') {
+          showLoader("Filtrando por Incra/CAR..."); 
+          setTimeout(updateDashboard,100); 
+        }
+      });
 
       document.getElementById('apply-filters').addEventListener('click', ()=>{ showLoader("Aplicando filtros..."); setTimeout(updateDashboard,100); });
       yearFilter.addEventListener('change', ()=>{ showLoader('Atualizando...'); setTimeout(updateDashboard,50); });
@@ -2272,7 +2297,9 @@ function updateYearlyChartFromFiltered(filteredRows) {
         selectedImoveis=[]; selectedAssentamentos=[]; selectedTerrasSemDestinacao=[]; selectedUCs=[];
         currentCategoryFilter='all'; exploracaoFilter.value='all';
         estadoFilter.value='all'; categoriaFilter.value='all';
-        jurisdicaoFilter.value='all'; usoFilter.value='all'; if (faseFilter) faseFilter.value = 'all';
+        jurisdicaoFilter.value='all'; usoFilter.value='all'; 
+        if (faseFilter) faseFilter.value = 'all';
+        if (incraCarFilter) incraCarFilter.value = 'all';
         toggleExtraFilters();
         yearFilter.value = 'all';
         document.querySelectorAll('.modal.show').forEach(m=>{ const inst=bootstrap.Modal.getInstance(m); if (inst) inst.hide(); });
