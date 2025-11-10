@@ -157,6 +157,14 @@
       .span-3, .span-2, .span-4, .span-1 { grid-column: span 1; }
     }
   </style>
+  <script>
+    // Registrar Service Worker o mais cedo possível
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('Service Worker registrado:', reg.scope))
+        .catch(err => console.warn('Falha ao registrar Service Worker:', err));
+    }
+  </script>
 </head>
 <body>
   <!-- Loader -->
@@ -2341,6 +2349,33 @@ if (lineChartTitleEl) {
     }
 
     window.addEventListener('DOMContentLoaded', init);
+    
+    // Opcional: aquecer o cache na primeira visita (não bloqueante)
+    (async function warmSIMEXCache(){
+      if (!('caches' in window)) return;
+      try{
+        const cache = await caches.open('simex-datasets-v1');
+        const urls = [
+          '/dataset/AMZ_legal_amz_legal.geojson',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_assentamentos.geojson',
+          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_assentamentos.csv',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_imoveisrurais.geojson',
+          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.csv',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_mun.geojson',
+          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_municipios.csv',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TI.geojson',
+          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TI.csv',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TerrasNDest.geojson',
+          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TerrasNDest.csv',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_UC.geojson',
+          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_UC.csv',
+        ];
+        await Promise.all(urls.map(u => cache.add(u).catch(()=>{})));
+        console.log('Cache SIMEX aquecido');
+      }catch(e){
+        console.warn('Falha ao aquecer cache SIMEX:', e);
+      }
+    })();
   </script>
 </body>
 </html>
