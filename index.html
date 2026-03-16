@@ -407,7 +407,7 @@
         <div class="card">
           <div class="card-header">
             <div class="chart-header-container d-flex justify-content-between align-items-center">
-              <div class="chart-title"><i class="fas fa-chart-line me-2"></i>Gráfico Série Histórica (2007 - 2023)</div>
+              <div class="chart-title"><i class="fas fa-chart-line me-2"></i>Gráfico Série Histórica (2007 - 2024)</div>
               <div class="d-flex align-items-center">
                 <div class="download-group d-none">
                   <button class="btn btn-sm btn-outline-secondary" id="download-line-png" title="PNG"><i class="fa-solid fa-image me-1"></i>PNG</button>
@@ -427,7 +427,7 @@
         <div class="card">
           <div class="card-header">
             <div class="chart-header-container d-flex justify-content-between align-items-center">
-              <div class="chart-title"><i class="fas fa-chart-area me-2"></i>Série Histórica Anual (2007 - 2023)</div>
+              <div class="chart-title"><i class="fas fa-chart-area me-2"></i>Série Histórica Anual (2007 - 2024)</div>
               <div class="d-flex align-items-center">
                 <div class="download-group d-none">
                   <button class="btn btn-sm btn-outline-secondary" id="download-yearly-png" title="PNG"><i class="fa-solid fa-image me-1"></i>PNG</button>
@@ -759,14 +759,14 @@
 
     const DATASETS = {
       assentamentos:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_assentamentos.geojson',
+        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_assentamentos.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_assentamentos.csv',
         geoField:'name',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
           area:(+d.area_ha||0),name:d.name })
       },
       imoveis:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_imoveisrurais.geojson',
+        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_imoveisrurais.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.csv',
         geoField:'nome',
         parse:d=>({ 
@@ -780,42 +780,42 @@
         })
       },
       municipios:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_mun.geojson',
+        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_mun.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_municipios.csv',
         geoField:'nome',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
           area:(+d.area_ha||0),name:d.nome })
       },
       estados:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_mun.geojson',
+        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_mun.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_municipios.csv',
         geoField:'nome',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,state_name:UF_NAMES[d.sigla_uf]||d.sigla_uf,
           category:d.categoria||'',area:(+d.area_ha||0),name:UF_NAMES[d.sigla_uf]||d.sigla_uf })
       },
       terras: {
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TI.geojson',
+        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_TI.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TI.csv',
-        geoField:'nome',
+        geoField:'terrai_nom',
         parse: d => ({
           year: +d.ano || null,
           month: null,
           state: d.sigla_uf,
           category: d.categoria || '',
           area: (+d.area_ha || 0),
-          name: d.nome,
+          name: d.terrai_nom,
           fase: (d['fase_ti'] ?? d['Fase_ti'] ?? d['FASE_TI'] ?? d.fase ?? d.Fase ?? '').toString().trim()
         })
       },
       terras_sem_destinacao:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TerrasNDest.geojson',
+        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_TerrasNDest.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TerrasNDest.csv',
         geoField:'name',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
           area:(+d.area_ha||0),name:d.name })
       },
       uc:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_UC.geojson',
+        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_UC.geojson',
         csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_UC.csv',
         geoField:'nome_1',
         parse:d=>({ 
@@ -1151,6 +1151,22 @@
           d.normalizedCategory = normalizeCategory(d.category);
           d.dataset = currentDataset;
         });
+
+        // Para assentamentos: complementar csvData com registros do GeoJSON para anos não presentes no CSV
+        if (currentDataset === 'assentamentos') {
+          const csvYears = new Set(csvData.map(d => d.year));
+          const geoRecords = geojson.features
+            .map(f => {
+              const p = f.properties;
+              const year = +(p.Ano || p.ano) || null;
+              return { year, month: null, state: p.sigla_uf || p.UF || '',
+                category: p.categoria || '', area: +(p.area_ha) || 0,
+                name: p.name || p.nome || '', sub_class: p.sub_class || '',
+                dataset: 'assentamentos', normalizedCategory: normalizeCategory(p.categoria || '') };
+            })
+            .filter(d => d.year && !isNaN(d.year) && d.year >= 2007 && d.year <= new Date().getFullYear() && !csvYears.has(d.year));
+          csvData.push(...geoRecords);
+        }
       }
 
       if (currentDataset === 'municipios' || currentDataset === 'estados' || currentDataset === 'all') {
@@ -1784,7 +1800,26 @@ if (rankingTitleEl) {
             x:{ beginAtZero:true, suggestedMax: withHeadroom(max, 0.12), grid:{display:false},
                 title:{display:true,text:'Área (ha)'},
                 ticks:{ autoSkip:true, maxTicksLimit: isSmallScreen()?4 : (isTabletScreen()?6:8) } },
-            y:{ grid:{display:false}, ticks:{ autoSkip: isSmallScreen(), maxTicksLimit: isSmallScreen()?8:undefined } }
+            y:{ grid:{display:false}, ticks:{ autoSkip: isSmallScreen(), maxTicksLimit: isSmallScreen()?8:undefined,
+                callback: function(val, index) {
+                  const label = this.getLabelForValue(val);
+                  if (!label || isSmallScreen()) return label;
+                  const maxLen = 28;
+                  if (label.length <= maxLen) return label;
+                  const words = label.split(' ');
+                  const lines = [];
+                  let cur = '';
+                  for (const w of words) {
+                    const test = cur ? cur + ' ' + w : w;
+                    if (test.length <= maxLen) { cur = test; }
+                    else { if (cur) lines.push(cur); cur = w; }
+                  }
+                  if (cur) lines.push(cur);
+                  return lines;
+                }
+              },
+              afterFit: function(axis) { axis.width = Math.max(axis.width, isSmallScreen() ? 120 : 220); }
+            }
           }
         }
       });
@@ -1833,8 +1868,12 @@ if (rankingTitleEl) {
               anchor: 'end',
               align: 'top',
               color: '#333',
-              font: { weight: 'bold', size: isSmallScreen() ? 9 : 10 },
-              formatter: v => v.toLocaleString('pt-BR', { maximumFractionDigits: 0 }),
+              font: { weight: 'bold', size: 10 },
+              formatter: v => {
+                if (v >= 1e6) return (v/1e6).toLocaleString('pt-BR', { minimumFractionDigits:1, maximumFractionDigits:1 }) + 'M';
+                if (v >= 1e3) return (v/1e3).toLocaleString('pt-BR', { minimumFractionDigits:1, maximumFractionDigits:1 }) + 'k';
+                return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+              },
               clamp: true,
               clip: false
             },
@@ -1848,12 +1887,12 @@ if (rankingTitleEl) {
           layout: {
             padding: isSmallScreen()
               ? { left: 0, right: 10, top: 0, bottom: 0 }
-              : { right: 12 }
+              : { top: 40, right: 12 }
           },
           scales: {
             y: {
               beginAtZero: true,
-              suggestedMax: withHeadroom(maxVal, .12),
+              suggestedMax: withHeadroom(maxVal, .22),
               grid: { display: false },
               title: { display: true, text: 'Área Total (ha)' }
             },
@@ -2357,17 +2396,17 @@ if (lineChartTitleEl) {
         const cache = await caches.open('simex-datasets-v1');
         const urls = [
           '/dataset/AMZ_legal_amz_legal.geojson',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_assentamentos.geojson',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_assentamentos.geojson',
           '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_assentamentos.csv',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_imoveisrurais.geojson',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_imoveisrurais.geojson',
           '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.csv',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_mun.geojson',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_mun.geojson',
           '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_municipios.csv',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TI.geojson',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_TI.geojson',
           '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TI.csv',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TerrasNDest.geojson',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_TerrasNDest.geojson',
           '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TerrasNDest.csv',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_UC.geojson',
+          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_UC.geojson',
           '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_UC.csv',
         ];
         await Promise.all(urls.map(u => cache.add(u).catch(()=>{})));

@@ -4,7 +4,7 @@ const CACHE_NAME = 'simex-datasets-v1';
 // Arquivos a serem pré-carregados no cache (CSV e GeoJSON)
 const PRECACHE_URLS = [
   '/dataset/AMZ_legal_amz_legal.geojson',
-  '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_assentamentos.geojson',
+  '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_assentamentos.geojson',
   '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_assentamentos.csv',
   '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_imoveisrurais.geojson',
   '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.csv',
