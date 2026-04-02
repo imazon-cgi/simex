@@ -2,20 +2,21 @@
 const CACHE_NAME = 'simex-datasets-v1';
 
 // Arquivos a serem pré-carregados no cache (CSV e GeoJSON)
+const S3_BASE = 'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex';
 const PRECACHE_URLS = [
-  '/dataset/AMZ_legal_amz_legal.geojson',
-  '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_assentamentos.geojson',
-  '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_assentamentos.csv',
-  '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_imoveisrurais.geojson',
-  '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.csv',
-  '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_mun.geojson',
-  '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_municipios.csv',
-  '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TI.geojson',
-  '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TI.csv',
-  '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_TerrasNDest.geojson',
-  '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TerrasNDest.csv',
-  '/dataset/simex/geojson/simex_amazonia_PAMT2007_2023_UC.geojson',
-  '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_UC.csv',
+  `${S3_BASE}/geojson/simex_amazonia_PAMT_limite_municipios_amz_legal.geojson`,
+  `${S3_BASE}/geojson/simex_amazonia_PAMT_assentamentos.geojson`,
+  `${S3_BASE}/csv/simex_amazonia_PAMT_assentamentos.csv`,
+  `${S3_BASE}/geojson/simex_amazonia_PAMT_imoveisrurais.geojson`,
+  `${S3_BASE}/csv/simex_amazonia_PAMT_imoveisrurais.csv`,
+  `${S3_BASE}/geojson/simex_amazonia_PAMT_mun.geojson`,
+  `${S3_BASE}/csv/simex_amazonia_PAMT_municipios.csv`,
+  `${S3_BASE}/geojson/simex_amazonia_PAMT_TI.geojson`,
+  `${S3_BASE}/csv/simex_amazonia_PAMT_TI.csv`,
+  `${S3_BASE}/geojson/simex_amazonia_PAMT_TerrasNDest.geojson`,
+  `${S3_BASE}/csv/simex_amazonia_PAMT_TerrasNDest.csv`,
+  `${S3_BASE}/geojson/simex_amazonia_PAMT_UC.geojson`,
+  `${S3_BASE}/csv/simex_amazonia_PAMT_UC.csv`,
 ];
 
 self.addEventListener('install', (event) => {
@@ -39,11 +40,9 @@ self.addEventListener('activate', (event) => {
 function shouldHandle(request) {
   try {
     const url = new URL(request.url);
-    return (
-      request.method === 'GET' &&
-      url.origin === self.location.origin &&
-      url.pathname.startsWith('/dataset/')
-    );
+    const isS3 = url.origin === 'https://imazongeo3-web.s3.amazonaws.com' &&
+                 url.pathname.startsWith('/dashboard/simex/');
+    return request.method === 'GET' && isS3;
   } catch (e) {
     return false;
   }

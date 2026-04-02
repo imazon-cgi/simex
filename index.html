@@ -759,15 +759,15 @@
 
     const DATASETS = {
       assentamentos:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_assentamentos.geojson',
-        csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_assentamentos.csv',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_assentamentos.geojson',
+        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_assentamentos.csv',
         geoField:'name',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
           area:(+d.area_ha||0),name:d.name })
       },
       imoveis:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_imoveisrurais.geojson',
-        csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.csv',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_imoveisrurais.geojson',
+        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_imoveisrurais.csv',
         geoField:'nome',
         parse:d=>({ 
           year:+d.ano||null,
@@ -780,22 +780,22 @@
         })
       },
       municipios:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_mun.geojson',
-        csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_municipios.csv',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_mun.geojson',
+        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_municipios.csv',
         geoField:'nome',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
           area:(+d.area_ha||0),name:d.nome })
       },
       estados:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_mun.geojson',
-        csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_municipios.csv',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_mun.geojson',
+        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_municipios.csv',
         geoField:'nome',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,state_name:UF_NAMES[d.sigla_uf]||d.sigla_uf,
           category:d.categoria||'',area:(+d.area_ha||0),name:UF_NAMES[d.sigla_uf]||d.sigla_uf })
       },
       terras: {
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_TI.geojson',
-        csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TI.csv',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_TI.geojson',
+        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_TI.csv',
         geoField:'terrai_nom',
         parse: d => ({
           year: +d.ano || null,
@@ -808,15 +808,15 @@
         })
       },
       terras_sem_destinacao:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_TerrasNDest.geojson',
-        csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TerrasNDest.csv',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_TerrasNDest.geojson',
+        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_TerrasNDest.csv',
         geoField:'name',
         parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
           area:(+d.area_ha||0),name:d.name })
       },
       uc:{
-        geo:'/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_UC.geojson',
-        csv:'/dataset/simex/csv/simex_amazonia_PAMT2007_2023_UC.csv',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_UC.geojson',
+        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_UC.csv',
         geoField:'nome_1',
         parse:d=>({ 
           year:+d.ano||null, 
@@ -852,7 +852,7 @@
 
     // Leaflet map + panes
     let map, baseAmazonLayer=null, baseBounds=null, geoLayer=null;
-    const AMAZONIA_BASE_URL = '/dataset/AMZ_legal_amz_legal.geojson';
+    const AMAZONIA_BASE_URL = 'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_limite_municipios_amz_legal.geojson';
 
     const _norm = s => (s ?? '').toString().trim().toUpperCase();
     function normalizeCategory(raw=''){
@@ -2395,19 +2395,19 @@ if (lineChartTitleEl) {
       try{
         const cache = await caches.open('simex-datasets-v1');
         const urls = [
-          '/dataset/AMZ_legal_amz_legal.geojson',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_assentamentos.geojson',
-          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_assentamentos.csv',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_imoveisrurais.geojson',
-          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_imoveisrurais.csv',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_mun.geojson',
-          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_municipios.csv',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_TI.geojson',
-          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TI.csv',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_TerrasNDest.geojson',
-          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_TerrasNDest.csv',
-          '/dataset/simex/geojson/simex_amazonia_PAMT2007_2024_UC.geojson',
-          '/dataset/simex/csv/simex_amazonia_PAMT2007_2023_UC.csv',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_limite_municipios_amz_legal.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_assentamentos.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_assentamentos.csv',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_imoveisrurais.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_imoveisrurais.csv',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_mun.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_municipios.csv',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_TI.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_TI.csv',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_TerrasNDest.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_TerrasNDest.csv',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_UC.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_UC.csv',
         ];
         await Promise.all(urls.map(u => cache.add(u).catch(()=>{})));
         console.log('Cache SIMEX aquecido');

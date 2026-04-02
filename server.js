@@ -80,12 +80,14 @@ const cspDirectives = {
     "https://*.tile.openstreetmap.org",
     "https://*.basemaps.cartocdn.com", // CORREÇÃO: Para requisições de conexão
     "https://a.basemaps.cartocdn.com",
-    "https://b.basemaps.cartocdn.com", 
+    "https://b.basemaps.cartocdn.com",
     "https://c.basemaps.cartocdn.com",
     "https://cdn.datatables.net",
     "https://cdnjs.cloudflare.com",
     "https://cdn.jsdelivr.net",
-    "https://unpkg.com"
+    "https://unpkg.com",
+    "https://imazongeo3-web.s3.amazonaws.com",
+    "https://imazongeo3-web.s3.sa-east-1.amazonaws.com"
   ],
 
   "worker-src": ["'self'", "blob:"],
