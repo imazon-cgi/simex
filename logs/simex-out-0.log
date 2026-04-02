@@ -33,3 +33,8 @@
 2026-04-01T22:05:27: SAD_DIR: C:\dashboards\simex\dataset\simex
 2026-04-01T22:05:27: ✅ Server em http://localhost:3002
 2026-04-01T22:05:27: 🛡️ CSP (Enforcing) ativo
+2026-04-01T22:36:05: ROOT_DIR: C:\dashboards\simex
+2026-04-01T22:36:05: DATASET_DIR: C:\dashboards\simex\dataset
+2026-04-01T22:36:05: SAD_DIR: C:\dashboards\simex\dataset\simex
+2026-04-01T22:36:05: ✅ Server em http://localhost:3002
+2026-04-01T22:36:05: 🛡️ CSP (Enforcing) ativo
