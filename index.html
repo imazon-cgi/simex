@@ -160,7 +160,9 @@
   <script>
     // Registrar Service Worker o mais cedo possível
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
+      const swUrl = new URL('sw.js', window.location.href);
+      const swScope = new URL('.', window.location.href).pathname;
+      navigator.serviceWorker.register(swUrl.href, { scope: swScope })
         .then(reg => console.log('Service Worker registrado:', reg.scope))
         .catch(err => console.warn('Falha ao registrar Service Worker:', err));
     }

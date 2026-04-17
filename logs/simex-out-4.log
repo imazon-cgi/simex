@@ -1,9 +1,0 @@
-2025-10-17T18:07:41: ✅ SIMEX rodando em http://localhost:3002
-2025-10-17T18:07:41: 📁 Raiz:      C:\dashboards\simex
-2025-10-17T18:07:41: 📁 /dataset → C:\dashboards\simex\dataset
-2025-10-17T18:07:41: 📁 /img     → C:\dashboards\simex\img
-2025-10-30T22:44:13: ROOT_DIR: C:\dashboards\simex
-2025-10-30T22:44:13: DATASET_DIR: C:\dashboards\simex\dataset
-2025-10-30T22:44:13: SAD_DIR: C:\dashboards\simex\dataset\simex
-2025-10-30T22:44:13: ✅ Server em http://localhost:3002
-2025-10-30T22:44:13: 🛡️ CSP (Enforcing) ativo
