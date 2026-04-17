@@ -759,74 +759,123 @@
       assentamentos: "M", imoveis: "M", uc: "F"
     };
 
+    function firstNonEmpty(...values) {
+      for (const value of values) {
+        if (value === undefined || value === null) continue;
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          if (trimmed) return trimmed;
+          continue;
+        }
+        return value;
+      }
+      return '';
+    }
+
+    function parseYearField(d) {
+      const rawYear = firstNonEmpty(d.ano, d.Ano, d.year, d.Year);
+      const year = Number(rawYear);
+      return Number.isFinite(year) ? year : null;
+    }
+
+    function parseStateField(d) {
+      return firstNonEmpty(d.sigla_uf, d.UF, d.state);
+    }
+
+    function getFeatureLabel(spec, properties = {}) {
+      if (!spec) return '';
+      const fields = Array.isArray(spec.geoFields) && spec.geoFields.length
+        ? spec.geoFields
+        : [spec.geoField];
+      return firstNonEmpty(...fields.map(field => properties?.[field]));
+    }
+
     const DATASETS = {
       assentamentos:{
-        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_assentamentos.geojson',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_assentamentos.geojson',
         csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_assentamentos.csv',
         geoField:'name',
-        parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
-          area:(+d.area_ha||0),name:d.name })
+        geoFields:['name', 'nome'],
+        parse:d=>({ year:parseYearField(d),month:null,state:parseStateField(d),category:d.categoria||'',
+          area:(+d.area_ha||0),name:firstNonEmpty(d.name, d.nome) })
       },
       imoveis:{
-        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_imoveisrurais.geojson',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_imoveisrurais.geojson',
         csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_imoveisrurais.csv',
         geoField:'nome',
+        geoFields:['nome', 'name'],
         parse:d=>({ 
-          year:+d.ano||null,
+          year:parseYearField(d),
           month:null,
-          state:d.sigla_uf,
+          state:parseStateField(d),
           category:d.categoria||'',
           area:(+d.area_ha||0),
-          name:d.nome,
+          name:firstNonEmpty(d.nome, d.name),
           sub_class:d.sub_class // Adicionando a coluna sub_class
         })
       },
       municipios:{
-        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_mun.geojson',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_mun.geojson',
         csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_municipios.csv',
         geoField:'nome',
-        parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
-          area:(+d.area_ha||0),name:d.nome })
+        geoFields:['nome', 'Municipio', 'NM_MUN'],
+        parse:d=>({ year:parseYearField(d),month:null,state:parseStateField(d),category:d.categoria||'',
+          area:(+d.area_ha||0),name:firstNonEmpty(d.nome, d.Municipio, d.NM_MUN) })
       },
       estados:{
-        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_mun.geojson',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_mun.geojson',
         csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_municipios.csv',
         geoField:'nome',
-        parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,state_name:UF_NAMES[d.sigla_uf]||d.sigla_uf,
-          category:d.categoria||'',area:(+d.area_ha||0),name:UF_NAMES[d.sigla_uf]||d.sigla_uf })
+        geoFields:['nome', 'Municipio', 'NM_MUN'],
+        parse:d=>{
+          const state = parseStateField(d);
+          const stateName = UF_NAMES[state] || state;
+          return {
+            year:parseYearField(d),
+            month:null,
+            state,
+            state_name:stateName,
+            category:d.categoria||'',
+            area:(+d.area_ha||0),
+            name:stateName
+          };
+        }
       },
       terras: {
-        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_TI.geojson',
-        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_TI.csv',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_TI.geojson',
+        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_ti.csv',
         geoField:'terrai_nom',
+        geoFields:['terrai_nom', 'nome'],
         parse: d => ({
-          year: +d.ano || null,
+          year: parseYearField(d),
           month: null,
-          state: d.sigla_uf,
+          state: parseStateField(d),
           category: d.categoria || '',
           area: (+d.area_ha || 0),
-          name: d.terrai_nom,
+          name: firstNonEmpty(d.terrai_nom, d.nome),
           fase: (d['fase_ti'] ?? d['Fase_ti'] ?? d['FASE_TI'] ?? d.fase ?? d.Fase ?? '').toString().trim()
         })
       },
       terras_sem_destinacao:{
-        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_TerrasNDest.geojson',
-        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_TerrasNDest.csv',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_TerrasNDest.geojson',
+        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_terras_ndest.csv',
         geoField:'name',
-        parse:d=>({ year:+d.ano||null,month:null,state:d.sigla_uf,category:d.categoria||'',
-          area:(+d.area_ha||0),name:d.name })
+        geoFields:['name', 'nome'],
+        parse:d=>({ year:parseYearField(d),month:null,state:parseStateField(d),category:d.categoria||'',
+          area:(+d.area_ha||0),name:firstNonEmpty(d.name, d.nome) })
       },
       uc:{
-        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_UC.geojson',
-        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_UC.csv',
+        geo:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_UC.geojson',
+        csv:'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_uc.csv',
         geoField:'nome_1',
+        geoFields:['nome_1', 'nome'],
         parse:d=>({ 
-          year:+d.ano||null, 
+          year:parseYearField(d), 
           month:null, 
-          state:d.sigla_uf, 
+          state:parseStateField(d), 
           category:d.categoria||'',
           area:(+d.area_ha||0), 
-          name:d.nome_1, 
+          name:firstNonEmpty(d.nome_1, d.nome), 
           jurisdicao:d.esfera,
           uso:d.grupo
         })
@@ -854,7 +903,7 @@
 
     // Leaflet map + panes
     let map, baseAmazonLayer=null, baseBounds=null, geoLayer=null;
-    const AMAZONIA_BASE_URL = 'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_limite_municipios_amz_legal.geojson';
+    const AMAZONIA_BASE_URL = 'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_limite_municipios_amz_legal.geojson';
 
     const _norm = s => (s ?? '').toString().trim().toUpperCase();
     function normalizeCategory(raw=''){
@@ -1092,8 +1141,8 @@
         geojson.features.forEach(f => {
           const dataset = f.properties.dataset;
           const spec = DATASETS[dataset];
-          if (spec && spec.geoField) {
-            const name = f.properties[spec.geoField];
+          if (spec) {
+            const name = getFeatureLabel(spec, f.properties);
             if (name) {
               featureMap.set(name, f);
               featureMap.set(norm(name), f);
@@ -1131,7 +1180,7 @@
         } else {
           const spec2 = DATASETS[currentDataset];
           geojson.features.forEach(f => {
-            const name = f.properties[spec2.geoField];
+            const name = getFeatureLabel(spec2, f.properties);
             if (name) {
               featureMap.set(name, f);
               featureMap.set(norm(name), f);
@@ -1329,9 +1378,10 @@
       if (activeSel.length > 0) filtered = filtered.filter(d => activeSel.includes(d.name));
 
       const namesSet = new Set(filtered.map(d => (d.name||'').toLowerCase()));
-      const key = spec.geoField;
-
-      const feats = geojson.features.filter(f => namesSet.has(String(f.properties?.[key]||'').toLowerCase()));
+      const feats = geojson.features.filter(f => {
+        const featureName = getFeatureLabel(spec, f.properties);
+        return namesSet.has(String(featureName || '').toLowerCase());
+      });
       if (!feats.length){ alert('Não há feições para exportar com os filtros atuais.'); return; }
 
       const out = { type:'FeatureCollection', features: feats };
@@ -1438,23 +1488,22 @@ if (mapTitleEl) {
           }).addTo(map);
         } else {
           const spec = DATASETS[currentDataset] || {};
-          const key  = spec.geoField || 'nome';
 
           const wanted = new Set((namesToShow||[]).map(n => n.toLowerCase()));
           featuresToDraw = geojson.features.filter(f => {
-            const displayName = String(f.properties?.[key] ?? '');
+            const displayName = String(getFeatureLabel(spec, f.properties) || '');
             return okGeom(f) && wanted.has(displayName.toLowerCase());
           });
 
           geoLayer = L.geoJSON(featuresToDraw, {
             pane:'overlay-ranked',
             style:f=>{
-              const displayName = String(f.properties?.[key] ?? '');
+              const displayName = String(getFeatureLabel(spec, f.properties) || '');
               const v = aggData[displayName] || 0;
               return { color:'#555', weight:1, fillColor:colorScale(v), fillOpacity:.72 };
             },
             onEachFeature:(f,layer)=>{
-              const displayName = String(f.properties?.[key] ?? '');
+              const displayName = String(getFeatureLabel(spec, f.properties) || '');
               const v = aggData[displayName] || 0;
               const rank = namesToShow.findIndex(n => n.toLowerCase()===displayName.toLowerCase()) + 1;
               layer.bindPopup(`<b>${rank}º - ${displayName}</b><br>Área: ${v.toLocaleString('pt-BR',{maximumFractionDigits:2})} ha`);
@@ -2395,21 +2444,21 @@ if (lineChartTitleEl) {
     (async function warmSIMEXCache(){
       if (!('caches' in window)) return;
       try{
-        const cache = await caches.open('simex-datasets-v1');
+        const cache = await caches.open('simex-datasets-v2');
         const urls = [
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_limite_municipios_amz_legal.geojson',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_assentamentos.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_limite_municipios_amz_legal.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_assentamentos.geojson',
           'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_assentamentos.csv',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_imoveisrurais.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_imoveisrurais.geojson',
           'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_imoveisrurais.csv',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_mun.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_mun.geojson',
           'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_municipios.csv',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_TI.geojson',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_TI.csv',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_TerrasNDest.geojson',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_TerrasNDest.csv',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_UC.geojson',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_UC.csv',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_TI.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_ti.csv',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_TerrasNDest.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_terras_ndest.csv',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_UC.geojson',
+          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_uc.csv',
         ];
         const results = await Promise.allSettled(urls.map(u => cache.add(u)));
         const okCount = results.filter(r => r.status === 'fulfilled').length;
