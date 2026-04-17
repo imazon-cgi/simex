@@ -26,7 +26,18 @@ if (process.env.TRUST_PROXY) {
 }
 
 // ======== Content Security Policy (CSP) ========
-// CORREÇÃO COMPLETA: Adicionado todos os domínios necessários
+const CARTO_ORIGINS = [
+  "https://*.basemaps.cartocdn.com",
+  "https://a.basemaps.cartocdn.com",
+  "https://b.basemaps.cartocdn.com",
+  "https://c.basemaps.cartocdn.com"
+];
+
+const SIMEX_S3_ORIGINS = [
+  "https://imazongeo3-web.s3.amazonaws.com",
+  "https://imazongeo3-web.s3.sa-east-1.amazonaws.com"
+];
+
 const cspDirectives = {
   "default-src": ["'self'"],
 
@@ -64,30 +75,23 @@ const cspDirectives = {
     "data:",
     "blob:",
     "https://*.tile.openstreetmap.org",
-    "https://*.basemaps.cartocdn.com", // CORREÇÃO: Domínio correto para imagens
-    "https://a.basemaps.cartocdn.com", // CORREÇÃO: Subdomínios específicos
-    "https://b.basemaps.cartocdn.com",
-    "https://c.basemaps.cartocdn.com",
+    ...CARTO_ORIGINS,
     "https://unpkg.com",
     "https://cdn.jsdelivr.net",
     "https://cdnjs.cloudflare.com",
     "https://cdn.datatables.net",
-    "https://imazongeo3-web.s3.sa-east-1.amazonaws.com"
+    ...SIMEX_S3_ORIGINS
   ],
 
   "connect-src": [
     "'self'",
     "https://*.tile.openstreetmap.org",
-    "https://*.basemaps.cartocdn.com", // CORREÇÃO: Para requisições de conexão
-    "https://a.basemaps.cartocdn.com",
-    "https://b.basemaps.cartocdn.com",
-    "https://c.basemaps.cartocdn.com",
+    ...CARTO_ORIGINS,
     "https://cdn.datatables.net",
     "https://cdnjs.cloudflare.com",
     "https://cdn.jsdelivr.net",
     "https://unpkg.com",
-    "https://imazongeo3-web.s3.amazonaws.com",
-    "https://imazongeo3-web.s3.sa-east-1.amazonaws.com"
+    ...SIMEX_S3_ORIGINS
   ],
 
   "worker-src": ["'self'", "blob:"],

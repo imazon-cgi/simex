@@ -1,5 +1,9 @@
 /* Service Worker para cache dos datasets SIMEX */
 const CACHE_NAME = 'simex-datasets-v1';
+const S3_ORIGINS = new Set([
+  'https://imazongeo3-web.s3.amazonaws.com',
+  'https://imazongeo3-web.s3.sa-east-1.amazonaws.com',
+]);
 
 // Arquivos a serem pré-carregados no cache (CSV e GeoJSON)
 const S3_BASE = 'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex';
@@ -21,9 +25,14 @@ const PRECACHE_URLS = [
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const results = await Promise.allSettled(PRECACHE_URLS.map((url) => cache.add(url)));
+    const failed = results.filter((result) => result.status === 'rejected');
+    if (failed.length) {
+      console.warn(`[SW] Pré-cache parcial: ${PRECACHE_URLS.length - failed.length}/${PRECACHE_URLS.length} arquivos.`);
+    }
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -40,8 +49,7 @@ self.addEventListener('activate', (event) => {
 function shouldHandle(request) {
   try {
     const url = new URL(request.url);
-    const isS3 = url.origin === 'https://imazongeo3-web.s3.amazonaws.com' &&
-                 url.pathname.startsWith('/dashboard/simex/');
+    const isS3 = S3_ORIGINS.has(url.origin) && url.pathname.startsWith('/dashboard/simex/');
     return request.method === 'GET' && isS3;
   } catch (e) {
     return false;
@@ -63,10 +71,9 @@ self.addEventListener('fetch', (event) => {
           }
           return res;
         })
-        .catch(() => cached);
+        .catch(() => cached || Response.error());
 
       return cached || networkFetch;
     })
   );
 });
-

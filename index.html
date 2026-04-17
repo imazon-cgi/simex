@@ -2411,8 +2411,13 @@ if (lineChartTitleEl) {
           'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amazonia_PAMT_UC.geojson',
           'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_UC.csv',
         ];
-        await Promise.all(urls.map(u => cache.add(u).catch(()=>{})));
-        console.log('Cache SIMEX aquecido');
+        const results = await Promise.allSettled(urls.map(u => cache.add(u)));
+        const okCount = results.filter(r => r.status === 'fulfilled').length;
+        if (okCount === urls.length) {
+          console.log('Cache SIMEX aquecido');
+        } else {
+          console.warn(`Cache SIMEX parcial: ${okCount}/${urls.length} arquivos em cache`);
+        }
       }catch(e){
         console.warn('Falha ao aquecer cache SIMEX:', e);
       }
