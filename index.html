@@ -700,7 +700,7 @@
     function getValidYears(data) {
       return [...new Set(data.map(d => d.year))]
         .map(y => Number(y))
-        .filter(y => !isNaN(y) && y >= 2007 && y <= new Date().getFullYear())
+        .filter(y => !isNaN(y) && y >= limiteSIMEX.anoMin && y <= limiteSIMEX.anoMax)
         .sort((a, b) => a - b);
     }
 
@@ -882,6 +882,151 @@
       }
     };
 
+    /* ===========================
+       FONTES DE DADOS
+       Exploração: banco (server.js, /api/simex) quando a visão do SIMEX
+       existir; se o banco não estiver configurado ou ativo, os arquivos do S3
+       declarados em DATASETS. O contorno da Amazônia Legal vem sempre do S3.
+    ============================ */
+    const _API_SIMEX = window.location.pathname.startsWith('/simex') ? '/simex/api/simex' : '/api/simex';
+
+    // Camada do banco de cada recorte da página (estados soma os municípios)
+    const CAMADA_BANCO = {
+      assentamentos:'assentamentos', estados:'municipios', imoveis:'imoveis_rurais',
+      municipios:'municipios', terras:'terras_indigenas',
+      terras_sem_destinacao:'terras_nao_destinadas', uc:'unidades_conservacao'
+    };
+
+    // Recortes percorridos pelo modo "Todos" (estados repetiria os municípios)
+    const DATASETS_TODOS = Object.keys(DATASETS).filter(k => k !== 'estados');
+
+    // Anos cobertos pelos dados, usados para montar o filtro de ano. Vêm do
+    // banco; sem banco, fica o alcance dos arquivos publicados no S3.
+    let limiteSIMEX = { anoMin: 2007, anoMax: new Date().getFullYear() };
+    async function carregarLimiteSIMEX(){
+      try{
+        const r = await fetch(`${_API_SIMEX}/periodo`);
+        if (!r.ok) return;
+        const p = await r.json();
+        if (p.ano_max) limiteSIMEX = { anoMin: p.ano_min || 2007, anoMax: p.ano_max };
+      }catch{ /* sem banco: mantém o padrão */ }
+    }
+
+    // ===== Cache em memória dos CSVs =====
+    // A chave inclui o recorte: 'estados' e 'municipios' leem o mesmo arquivo,
+    // mas com funções parse diferentes.
+    const __csvCache = {};
+    function carregarCsv(dataset, url, parse){
+      const chave = `${dataset}|${url}`;
+      if (__csvCache[chave]) return __csvCache[chave]; // Promise cacheada
+      const p = fetch(url)
+        .then(r => { if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
+        .then(text => d3.csvParse(text, parse))
+        .catch(err => { delete __csvCache[chave]; throw err; });
+      __csvCache[chave] = p;
+      return p;
+    }
+
+    /* Registros de um recorte: banco e, se indisponível (503), CSV do S3.
+       Devolve também de onde vieram, porque o CSV do S3 tem lacunas que o
+       banco não tem. */
+    async function loadCsvSIMEX(dataset){
+      const spec = DATASETS[dataset];
+      const camada = CAMADA_BANCO[dataset];
+      if (camada){
+        try {
+          return { rows: await carregarCsv(dataset, `${_API_SIMEX}/${camada}.csv`, spec.parse), banco: true };
+        } catch { /* sem banco: cai no S3 */ }
+      }
+      return { rows: await carregarCsv(dataset, spec.csv, spec.parse), banco: false };
+    }
+
+    // ===== Cache em memória dos GeoJSON =====
+    const __geoCache = {};
+    function carregarGeo(url){
+      if (__geoCache[url]) return __geoCache[url];
+      const p = fetch(url)
+        .then(r => { if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        .catch(err => { delete __geoCache[url]; throw err; });
+      __geoCache[url] = p;
+      return p;
+    }
+
+    /* Polígonos de um recorte: só o ano e as áreas em tela, vindos do banco; se
+       o banco não responder, o GeoJSON inteiro do S3 (o arquivo de imóveis
+       rurais passa de 100 MB, por isso o banco vem primeiro). */
+    async function loadGeoSIMEX(dataset, ano, nomes = []){
+      const camada = CAMADA_BANCO[dataset];
+      if (camada){
+        const q = new URLSearchParams();
+        if (ano && ano !== 'all') q.set('ano', ano);
+        if (dataset === 'estados'){
+          // O ranking de estados lista UFs; o banco recorta os municípios delas
+          const ufs = nomes.map(n => UF_BY_NAME[norm(n)]).filter(Boolean);
+          if (ufs.length) q.set('ufs', ufs.join('|'));
+        } else if (nomes.length){
+          q.set('nomes', nomes.join('|'));
+        }
+        try { return await carregarGeo(`${_API_SIMEX}/${camada}.geojson?${q}`); }
+        catch { /* sem banco, sem polígonos no recorte ou recorte grande demais */ }
+      }
+      return carregarGeo(DATASETS[dataset].geo).catch(() => null);
+    }
+
+    /* Polígonos do recorte em tela. Em "Todos", junta os recortes e marca de
+       qual veio cada feição, como o mapa e a exportação esperam. */
+    async function loadGeoParaMapa(ano, nomes = []){
+      if (currentDataset !== 'all'){
+        const gj = await loadGeoSIMEX(currentDataset, ano, nomes);
+        return gj || { type:'FeatureCollection', features: [] };
+      }
+      const partes = await Promise.all(DATASETS_TODOS.map(async k => {
+        const gj = await loadGeoSIMEX(k, ano, nomes).catch(() => null);
+        const feats = gj?.features || [];
+        feats.forEach(f => { f.properties.dataset = k; });
+        return feats;
+      }));
+      return { type:'FeatureCollection', features: partes.flat() };
+    }
+
+    /* featureMap: nome da área -> feição, usado pelo zoom do ranking. Em
+       'estados' o mapa agrupa os municípios por UF, então guarda um descritor. */
+    function indexarFeicoes(gj){
+      featureMap.clear();
+      if (!gj || !Array.isArray(gj.features)) return;
+
+      if (currentDataset === 'estados'){
+        const porUF = new Map();
+        for (const f of gj.features){
+          const uf = (f.properties?.sigla_uf || f.properties?.UF || '').trim();
+          if (!uf) continue;
+          if (!porUF.has(uf)) porUF.set(uf, []);
+          porUF.get(uf).push(f);
+        }
+        for (const [uf, feats] of porUF.entries()){
+          const name = UF_NAMES[uf] || uf;
+          let bounds = null;
+          feats.forEach(feat => {
+            const b = L.geoJSON(feat).getBounds();
+            bounds = bounds ? bounds.extend(b) : b;
+          });
+          const descriptor = { type:'estado', uf, name, feats, bounds };
+          featureMap.set(name, descriptor);
+          featureMap.set(norm(name), descriptor);
+        }
+        return;
+      }
+
+      gj.features.forEach(f => {
+        const spec = DATASETS[f.properties?.dataset] || DATASETS[currentDataset];
+        const name = getFeatureLabel(spec, f.properties);
+        if (name){
+          featureMap.set(name, f);
+          featureMap.set(norm(name), f);
+        }
+      });
+    }
+
     const yearFilter = document.getElementById('yearFilter');
     const estadoFilter = document.getElementById('estadoFilter');
     const categoriaFilter = document.getElementById('categoriaFilter');
@@ -1036,7 +1181,7 @@
       if (!mapEl) { console.error('Map container not found.'); return; }
 
       map = L.map(mapEl, { zoomControl:true });
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_4awi_1_7d7bd486fd79a1eb352a8439', {
         attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
         crossOrigin: true,
         maxZoom: 19
@@ -1082,8 +1227,8 @@
       allOption.textContent = 'Todos os anos';
       yearFilter.appendChild(allOption);
       
-      // Filtrar apenas anos válidos (entre 2007 e o ano atual)
-      const validYears = years.filter(y => y >= 2007 && y <= new Date().getFullYear());
+      // Filtrar apenas anos válidos (o alcance dos dados)
+      const validYears = years.filter(y => y >= limiteSIMEX.anoMin && y <= limiteSIMEX.anoMax);
       
       validYears.forEach(y => {
         const opt = document.createElement('option');
@@ -1096,117 +1241,51 @@
 
     const loadData = async () => {
       showLoader("Carregando dados...");
-      
+
+      const anoValido = d => {
+        const y = +d.year;
+        return !isNaN(y) && y >= limiteSIMEX.anoMin && y <= limiteSIMEX.anoMax;
+      };
+
+      // Os polígonos do mapa são buscados por página do ranking (setRankPage),
+      // não aqui: o GeoJSON de imóveis rurais sozinho passa de 100 MB no S3.
+      geojson = null;
+      featureMap.clear();
+
       if (currentDataset === 'all') {
         const allData = [];
-        const allGeoJSONs = [];
-        
-        for (const datasetKey of Object.keys(DATASETS)) {
-          if (datasetKey === 'estados') continue;
-          
-          const spec = DATASETS[datasetKey];
+
+        for (const datasetKey of DATASETS_TODOS) {
           try {
-            const csvResponse = await fetch(spec.csv);
-            const text = await csvResponse.text();
-            const parsedData = d3.csvParse(text, spec.parse);
-            
-            // Filtrar dados com anos válidos
-            const filteredData = parsedData.filter(d => {
-              const year = +d.year;
-              return !isNaN(year) && year >= 2007 && year <= new Date().getFullYear();
-            });
-            
+            const { rows } = await loadCsvSIMEX(datasetKey);
+            const filteredData = rows.filter(anoValido);
             filteredData.forEach(d => {
               d.dataset = datasetKey;
               d.normalizedCategory = normalizeCategory(d.category);
             });
             allData.push(...filteredData);
-            
-            const geoResponse = await fetch(spec.geo);
-            const geoData = await geoResponse.json();
-            geoData.features.forEach(f => { f.properties.dataset = datasetKey; });
-            allGeoJSONs.push(geoData);
           } catch (error) {
             console.error(`Erro ao carregar dataset ${datasetKey}:`, error);
           }
         }
-        
+
         csvData = allData;
-        geojson = {
-          type: 'FeatureCollection',
-          features: allGeoJSONs.flatMap(gj => gj.features)
-        };
-        
-        featureMap.clear();
-        geojson.features.forEach(f => {
-          const dataset = f.properties.dataset;
-          const spec = DATASETS[dataset];
-          if (spec) {
-            const name = getFeatureLabel(spec, f.properties);
-            if (name) {
-              featureMap.set(name, f);
-              featureMap.set(norm(name), f);
-            }
-          }
-        });
-        
+
       } else {
-        // Código para dataset específico - também aplicar filtro de anos
-        const spec = DATASETS[currentDataset];
+        const { rows, banco } = await loadCsvSIMEX(currentDataset);
 
-        const geoResponse = await fetch(spec.geo);
-        geojson = await geoResponse.json();
-
-        featureMap.clear();
-        if (currentDataset === 'estados') {
-          const byUF = new Map();
-          for (const f of geojson.features) {
-            const uf = (f.properties?.sigla_uf || f.properties?.UF || '').trim();
-            if (!uf) continue;
-            if (!byUF.has(uf)) byUF.set(uf, []);
-            byUF.get(uf).push(f);
-          }
-          for (const [uf, feats] of byUF.entries()) {
-            const name = UF_NAMES[uf] || uf;
-            let bounds = null;
-            feats.forEach(feat => {
-              const b = L.geoJSON(feat).getBounds();
-              bounds = bounds ? bounds.extend(b) : b;
-            });
-            const descriptor = { type:'estado', uf, name, feats, bounds };
-            featureMap.set(name, descriptor);
-            featureMap.set(norm(name), descriptor);
-          }
-        } else {
-          const spec2 = DATASETS[currentDataset];
-          geojson.features.forEach(f => {
-            const name = getFeatureLabel(spec2, f.properties);
-            if (name) {
-              featureMap.set(name, f);
-              featureMap.set(norm(name), f);
-            }
-          });
-        }
-
-        const csvResponse = await fetch(spec.csv);
-        const text = await csvResponse.text();
-        const parsedData = d3.csvParse(text, spec.parse);
-        
-        // Filtrar dados com anos válidos
-        csvData = parsedData.filter(d => {
-          const year = +d.year;
-          return !isNaN(year) && year >= 2007 && year <= new Date().getFullYear();
-        });
-        
+        csvData = rows.filter(anoValido);
         csvData.forEach(d => {
           d.normalizedCategory = normalizeCategory(d.category);
           d.dataset = currentDataset;
         });
 
-        // Para assentamentos: complementar csvData com registros do GeoJSON para anos não presentes no CSV
-        if (currentDataset === 'assentamentos') {
+        // O CSV de assentamentos do S3 não traz todos os anos; o do banco traz.
+        // Só na volta ao S3 vale completar pelo GeoJSON (que tem todos os anos).
+        if (currentDataset === 'assentamentos' && !banco) {
           const csvYears = new Set(csvData.map(d => d.year));
-          const geoRecords = geojson.features
+          const gj = await carregarGeo(DATASETS.assentamentos.geo).catch(() => null);
+          const geoRecords = (gj?.features || [])
             .map(f => {
               const p = f.properties;
               const year = +(p.Ano || p.ano) || null;
@@ -1215,7 +1294,7 @@
                 name: p.name || p.nome || '', sub_class: p.sub_class || '',
                 dataset: 'assentamentos', normalizedCategory: normalizeCategory(p.categoria || '') };
             })
-            .filter(d => d.year && !isNaN(d.year) && d.year >= 2007 && d.year <= new Date().getFullYear() && !csvYears.has(d.year));
+            .filter(d => d.year && anoValido(d) && !csvYears.has(d.year));
           csvData.push(...geoRecords);
         }
       }
@@ -1345,14 +1424,14 @@
         new Blob([csv], {type:'text/csv;charset=utf-8'}));
     }
 
-    function exportGeoJSONAnualSIMEX(ano){
+    async function exportGeoJSONAnualSIMEX(ano){
       if (currentDataset === 'all') {
         alert('Exportação GeoJSON não disponível para "Todos" os datasets.');
         return;
       }
 
       const spec = DATASETS[currentDataset];
-      if (!spec || !geojson) { alert('Camada ainda não está pronta.'); return; }
+      if (!spec) { alert('Camada ainda não está pronta.'); return; }
 
       const estado = estadoFilter.value;
       const jurisdicao = currentDataset==='uc' ? jurisdicaoFilter.value : 'all';
@@ -1377,8 +1456,13 @@
       const activeSel = selectionNamesAvailableInYear(+ano);
       if (activeSel.length > 0) filtered = filtered.filter(d => activeSel.includes(d.name));
 
+      // Polígonos do ano inteiro (o mapa só carrega os da página do ranking),
+      // recortados aqui pelos nomes que sobraram dos filtros
+      const gj = await loadGeoSIMEX(currentDataset, ano);
+      if (!gj) { alert('Camada ainda não está pronta.'); return; }
+
       const namesSet = new Set(filtered.map(d => (d.name||'').toLowerCase()));
-      const feats = geojson.features.filter(f => {
+      const feats = gj.features.filter(f => {
         const featureName = getFeatureLabel(spec, f.properties);
         return namesSet.has(String(featureName || '').toLowerCase());
       });
@@ -1390,36 +1474,12 @@
     }
 
     /* ===========================
-       DOWNLOADS DO S3
+       DOWNLOADS (como no SAD): o servidor gera o ano a partir do banco
+       (server.js, /api/simex/download). CSV direto; GeoJSON e Shapefile em ZIP
     ============================ */
-    const S3_DOWNLOAD = {
-      base: 'https://imazongeo3-web.s3.sa-east-1.amazonaws.com/simex',
-      folderByType: { geojson: 'geojson', csv: 'csv', shp: 'shapefile' },
-      extByType:    { geojson: 'geojson', csv: 'csv', shp: 'zip' },
-      filename(year, type) {
-        return `simex_unificado_${year}.${this.extByType[type]}`;
-      },
-      url(year, type) {
-        const t = (type || 'geojson').toLowerCase();
-        const folder = this.folderByType[t];
-        if (!folder) throw new Error(`Tipo inválido: ${type}`);
-        return `${this.base}/${folder}/${this.filename(year, t)}`;
-      }
-    };
-
-    function downloadFromS3(year, type) {
-      const url = S3_DOWNLOAD.url(year, type);
-      fetch(url, { method: 'HEAD' })
-        .then(r => {
-          if (r.ok) {
-            triggerDownload(url, S3_DOWNLOAD.filename(year, type));
-          } else {
-            alert(`Arquivo não encontrado no S3 (${type.toUpperCase()} ${year}).`);
-          }
-        })
-        .catch(() => {
-          triggerDownload(url, S3_DOWNLOAD.filename(year, type));
-        });
+    function simexDownloadUrl(year, type) {
+      const ext = type === 'csv' ? 'csv' : 'zip';
+      return `${_API_SIMEX}/download/${year}.${ext}${type === 'geojson' ? '?formato=geojson' : ''}`;
     }
 
     /* ===========================
@@ -1487,23 +1547,22 @@ if (mapTitleEl) {
             }
           }).addTo(map);
         } else {
-          const spec = DATASETS[currentDataset] || {};
+          // Em "Todos" cada feição traz o recorte de onde veio
+          const specDe = f => DATASETS[f.properties?.dataset] || DATASETS[currentDataset] || {};
+          const nomeDe = f => String(getFeatureLabel(specDe(f), f.properties) || '');
 
           const wanted = new Set((namesToShow||[]).map(n => n.toLowerCase()));
-          featuresToDraw = geojson.features.filter(f => {
-            const displayName = String(getFeatureLabel(spec, f.properties) || '');
-            return okGeom(f) && wanted.has(displayName.toLowerCase());
-          });
+          featuresToDraw = geojson.features.filter(f => okGeom(f) && wanted.has(nomeDe(f).toLowerCase()));
 
           geoLayer = L.geoJSON(featuresToDraw, {
             pane:'overlay-ranked',
             style:f=>{
-              const displayName = String(getFeatureLabel(spec, f.properties) || '');
+              const displayName = nomeDe(f);
               const v = aggData[displayName] || 0;
               return { color:'#555', weight:1, fillColor:colorScale(v), fillOpacity:.72 };
             },
             onEachFeature:(f,layer)=>{
-              const displayName = String(getFeatureLabel(spec, f.properties) || '');
+              const displayName = nomeDe(f);
               const v = aggData[displayName] || 0;
               const rank = namesToShow.findIndex(n => n.toLowerCase()===displayName.toLowerCase()) + 1;
               layer.bindPopup(`<b>${rank}º - ${displayName}</b><br>Área: ${v.toLocaleString('pt-BR',{maximumFractionDigits:2})} ha`);
@@ -1651,7 +1710,7 @@ if (mapTitleEl) {
     }
 
     /* ===========================
-       DOWNLOADS (UI) — S3 por ano
+       DOWNLOADS (UI) — banco, por ano
     ============================ */
     function buildDownloadsListSIMEX(){
       const list = document.getElementById('simex-downloads-list');
@@ -1709,7 +1768,7 @@ if (mapTitleEl) {
         title.className = 'format-title';
         title.textContent =
           currentType==='csv'      ? 'CSV' :
-          currentType==='geojson'  ? 'GeoJSON' :
+          currentType==='geojson'  ? 'GeoJSON (ZIP)' :
                                      'Shapefile (ZIP)';
         formatCard.appendChild(title);
 
@@ -1719,14 +1778,10 @@ if (mapTitleEl) {
         anos.forEach(ano=>{
           const li = document.createElement('li');
           const a = document.createElement('a');
-          a.href = 'javascript:void(0)';
+          a.href = simexDownloadUrl(ano, currentType);
           a.className = 'chiplink';
           a.textContent = String(ano);
-          a.title = `Baixar ${currentType.toUpperCase()} de ${ano} do S3`;
-
-          a.addEventListener('click', ()=>{
-            downloadFromS3(ano, currentType);
-          });
+          a.title = `Baixar ${currentType.toUpperCase()} de ${ano}`;
 
           li.appendChild(a);
           ul.appendChild(li);
@@ -1763,7 +1818,7 @@ if (mapTitleEl) {
 
     function totalPages(){ return Math.max(1, Math.ceil(rankingAll.length / pageSize)); }
 
-    function setRankPage(p){
+    async function setRankPage(p){
       const tp = totalPages();
       rankPage = Math.max(0, Math.min(tp - 1, p));
 
@@ -1785,6 +1840,10 @@ if (mapTitleEl) {
       updateLineChart(yearFilter.value, labels);
 
       const aggPage = Object.fromEntries(slice);
+
+      // Busca só os polígonos das áreas desta página do ranking, no ano do filtro
+      geojson = await loadGeoParaMapa(yearFilter.value, labels);
+      indexarFeicoes(geojson);
       updateMap(aggPage, labels);
     }
 
@@ -1819,7 +1878,7 @@ if (rankingTitleEl) {
             if (!els.length) return;
             const idx = els[0].index;
             const name = labels[idx];
-            const props0 = geojson.features[0]?.properties || {};
+            const props0 = geojson?.features?.[0]?.properties || {};
             const hasSiglaUF = 'sigla_uf' in props0 || 'UF' in props0;
 
             if (currentDataset==='estados' && hasSiglaUF) {
@@ -2098,7 +2157,7 @@ if (lineChartTitleEl) {
       });
     }
 
-    function updateDashboard(){
+    async function updateDashboard(){
       const year = yearFilter.value;
       const estado = estadoFilter.value;
       
@@ -2209,7 +2268,8 @@ if (lineChartTitleEl) {
 
       updateYearlyChartFromFiltered(filtered);
 
-      setRankPage(0);
+      // aguarda os polígonos da primeira página: o loader some com o mapa pronto
+      await setRankPage(0);
 
       buildDownloadsListSIMEX();
 
@@ -2331,6 +2391,7 @@ if (lineChartTitleEl) {
       initializeFilterValues();
       mapInit();
 
+      await carregarLimiteSIMEX(); // define o alcance do filtro de ano antes de montá-lo
       await loadData();
       toggleExtraFilters();
       updateDashboard();
@@ -2439,38 +2500,6 @@ if (lineChartTitleEl) {
     }
 
     window.addEventListener('DOMContentLoaded', init);
-    
-    // Opcional: aquecer o cache na primeira visita (não bloqueante)
-    (async function warmSIMEXCache(){
-      if (!('caches' in window)) return;
-      try{
-        const cache = await caches.open('simex-datasets-v2');
-        const urls = [
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_limite_municipios_amz_legal.geojson',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_assentamentos.geojson',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_assentamentos.csv',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_imoveisrurais.geojson',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_imoveisrurais.csv',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_mun.geojson',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_municipios.csv',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_TI.geojson',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_ti.csv',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_TerrasNDest.geojson',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_terras_ndest.csv',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/geojson/simex_amz_PAMTM_UC.geojson',
-          'https://imazongeo3-web.s3.amazonaws.com/dashboard/simex/csv/simex_amazonia_PAMT_uc.csv',
-        ];
-        const results = await Promise.allSettled(urls.map(u => cache.add(u)));
-        const okCount = results.filter(r => r.status === 'fulfilled').length;
-        if (okCount === urls.length) {
-          console.log('Cache SIMEX aquecido');
-        } else {
-          console.warn(`Cache SIMEX parcial: ${okCount}/${urls.length} arquivos em cache`);
-        }
-      }catch(e){
-        console.warn('Falha ao aquecer cache SIMEX:', e);
-      }
-    })();
   </script>
 </body>
 </html>
